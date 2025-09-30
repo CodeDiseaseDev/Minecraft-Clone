@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/ext/scalar_uint_sized.hpp>
+#include <glm/vec3.hpp>
 
 #include "Objects/GameObject.h"
 
@@ -12,12 +13,13 @@ enum class BlockID : glm::uint8 {
 class Block {
 public:
   BlockID id = BlockID::Air;
-  glm::vec3 position = glm::vec3(0, 0, 0);
+  glm::ivec3 position {0, 0, 0};
 
-  AABB getAABB() {
+  [[nodiscard]] AABB getAABB() const {
+    glm::vec3 min = glm::vec3(position);
     return AABB(
-      position,
-      glm::vec3(1,1,1));
+      min,
+      min + glm::vec3(1.0f));
   }
   // ...
 

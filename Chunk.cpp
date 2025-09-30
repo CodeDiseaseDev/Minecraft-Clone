@@ -37,7 +37,7 @@ Chunk::Chunk(int chunkX, int chunkY, int chunkZ, int seed) {
   //   }
   // }
 
-  position = glm::vec3(chunkX, chunkY, chunkZ);
+  position = glm::ivec3(chunkX, chunkY, chunkZ);
 
   // Setup noise generator
   FastNoiseLite noise;
@@ -70,7 +70,10 @@ Chunk::Chunk(int chunkX, int chunkY, int chunkZ, int seed) {
           blocks[x][y][z] = Block{ BlockID::Air };
         }
 
-        blocks[x][y][z].position = glm::vec3(x, y, z);
+        blocks[x][y][z].position = glm::ivec3(
+          chunkX * CHUNK_SIZE + x,
+          chunkY * CHUNK_SIZE + y,
+          chunkZ * CHUNK_SIZE + z);
       }
     }
   }
