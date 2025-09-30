@@ -57,7 +57,7 @@ void WorldRenderer::draw_depth_only(
     if (!chunk->mesh->vao) continue;
 
     glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(chunk->position.x, 0, chunk->position.z));
+    model = glm::translate(model, chunk->chunk_pos);
     depthShader->setMat4("model", model);
 
     chunk->mesh->draw();
@@ -90,13 +90,18 @@ void WorldRenderer::tick(glm::vec3 player_location, int render_distance) {
   //   }
   // }
 
+  const float max_chunk_distance = static_cast<float>(render_distance * CHUNK_SIZE);
+
   visibleChunks.erase(
       std::remove_if(
           visibleChunks.begin(), visibleChunks.end(),
           [&](const std::shared_ptr<ChunkObject>& chunk) {
               if (!chunk) return true; // remove null chunks
-              float distance = glm::distance(chunk->chunk_pos, player_location);
-              return distance >= render_distance;
+
+              // Compare using world-space distances – chunk_pos is expressed in world units,
+              // so we also work in world units here.
+              const float distance = glm::distance(chunk->chunk_pos, player_location);
+              return distance >= max_chunk_distance;
           }),
       visibleChunks.end()
   );
@@ -110,7 +115,7 @@ void WorldRenderer::tick(glm::vec3 player_location, int render_distance) {
 
     float distance = glm::distance(colCenter, player_location);
 
-    if (distance >= render_distance * CHUNK_SIZE) {
+    if (distance >= max_chunk_distance) {
       it = world.chunkColumns.erase(it);
     } else {
       ++it;

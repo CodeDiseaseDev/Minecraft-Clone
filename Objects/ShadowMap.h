@@ -25,9 +25,10 @@ public:
 
   GLuint GetDepthMap() const { return depthMap; }
   glm::mat4 GetLightSpaceMatrix(const glm::vec3& sunDir,
-                                         const glm::vec3& center) const;
+                                         const glm::vec3& center);
 
   const glm::mat4& LastLightSpace() const { return lastLightSpace_; }
+  const glm::vec3& LastLightPosition() const { return lastLightPos_; }
 
   // Camera GetLightCamera(const glm::vec3& sunDir) const;
 
@@ -39,6 +40,7 @@ private:
   int resolution;
 
   glm::mat4 lastLightSpace_{1.0f};
+  glm::vec3 lastLightPos_{0.0f};
 
   std::shared_ptr<Shader>& shader;
 

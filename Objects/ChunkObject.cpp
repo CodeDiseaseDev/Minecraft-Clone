@@ -142,7 +142,14 @@ void ChunkObject::draw(Camera &camera, std::shared_ptr<ShadowMap> shadow_map) co
   texture_atlas->bind(0);
   shader->setInt("atlas", 0);
 
-  shadow_map->bind(1);
+  if (shadow_map) {
+    shader->setMat4("lightSpaceMatrix", shadow_map->LastLightSpace());
+    shader->setVec3("lightPos", shadow_map->LastLightPosition());
+    shadow_map->bind(1);
+  } else {
+    shader->setMat4("lightSpaceMatrix", glm::mat4(1.0f));
+    shader->setVec3("lightPos", glm::vec3(0.0f));
+  }
   shader->setInt("shadowMap", 1);
 
   mesh->draw();
