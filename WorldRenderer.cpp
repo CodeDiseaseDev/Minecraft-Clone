@@ -68,6 +68,10 @@ void WorldRenderer::draw_depth_only(
   // glBindVertexArray(0);
 }
 
+inline float distance2(const glm::vec3& a, const glm::vec3& b) {
+  return glm::dot(a - b, a - b);
+}
+
 void WorldRenderer::tick(glm::vec3 player_location, int render_distance) {
   // for (auto& chunk : visibleChunks) {
   //   if (chunk == nullptr)
@@ -90,37 +94,26 @@ void WorldRenderer::tick(glm::vec3 player_location, int render_distance) {
   //   }
   // }
 
-  const float max_chunk_distance = static_cast<float>(render_distance * CHUNK_SIZE);
+  const float max_chunk_distance2 = (render_distance * CHUNK_SIZE) * (render_distance * CHUNK_SIZE);
 
-  visibleChunks.erase(
-      std::remove_if(
-          visibleChunks.begin(), visibleChunks.end(),
-          [&](const std::shared_ptr<ChunkObject>& chunk) {
-              if (!chunk) return true; // remove null chunks
+  // std::erase_if(visibleChunks, [&](const auto& chunk) {
+  //     if (!chunk) return true;
+  //     float d2 = distance2(chunk->chunk_pos, player_location);
+  //     return d2 >= max_chunk_distance2;
+  // });
 
-              // Compare using world-space distances – chunk_pos is expressed in world units,
-              // so we also work in world units here.
-              const float distance = glm::distance(chunk->chunk_pos, player_location);
-              return distance >= max_chunk_distance;
-          }),
-      visibleChunks.end()
-  );
-
-  for (auto it = world.chunkColumns.begin(); it != world.chunkColumns.end(); ) {
-    glm::vec3 colCenter(
-        it->first.x * CHUNK_SIZE + CHUNK_SIZE * 0.5f,
-        player_location.y, // ignore height for distance
-        it->first.y * CHUNK_SIZE + CHUNK_SIZE * 0.5f
-    );
-
-    float distance = glm::distance(colCenter, player_location);
-
-    if (distance >= max_chunk_distance) {
-      it = world.chunkColumns.erase(it);
-    } else {
-      ++it;
-    }
-  }
+  // int removed = 0;
+  // const int maxRemovals = 8; // tune this
+  //
+  // for (auto it = world.chunkColumns.begin(); it != world.chunkColumns.end() && removed < maxRemovals; ) {
+  //   float dist2 = distance2(it->second.colCenter, player_location);
+  //   if (dist2 >= max_chunk_distance2) {
+  //     it = world.chunkColumns.erase(it);
+  //     ++removed;
+  //   } else {
+  //     ++it;
+  //   }
+  // }
 
 
 }

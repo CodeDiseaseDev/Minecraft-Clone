@@ -123,8 +123,16 @@ std::vector<std::shared_ptr<Chunk>> World::ensureChunkAndNeighbors(
 
       // ChunkColumn& col = getOrCreateColumn(ncx, ncz);
 
+      glm::vec3 colCenter(
+        ncx * CHUNK_SIZE + CHUNK_SIZE * 0.5f,
+        0, // ignore height for distance
+        ncz * CHUNK_SIZE + CHUNK_SIZE * 0.5f
+      );
+
       auto [it, inserted] = chunkColumns.try_emplace({ncx, ncz});
       ChunkColumn& col = it->second;
+
+      col.colCenter = colCenter;
 
       for (int ncy = 0; ncy < WORLD_HEIGHT_CHUNKS; ++ncy) {
         if (!col.chunks[ncy]) {

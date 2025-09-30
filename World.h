@@ -15,7 +15,9 @@
 #define WORLD_HEIGHT_CHUNKS (256 / 16) // 16 subchunks tall
 
 struct ChunkColumn {
+
   std::array<std::shared_ptr<Chunk>, WORLD_HEIGHT_CHUNKS> chunks;
+  glm::vec3 colCenter;
 };
 
 struct ChunkCoord {

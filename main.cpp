@@ -56,7 +56,7 @@ EaseValue camera_zoom{camera.fov, camera.fov};
 float normal_fov = 120;
 float zoomed_fov = 40;
 
-float camera_sensitivity = 40.0f;
+float camera_sensitivity = 25.0f;
 bool mouse_captured = false;
 
 int render_distance_radius = 1;
@@ -195,7 +195,7 @@ void load_blur_shaders() {
 
     depth_shader = Shader::loadFromName("depth");
     shadow_depth_map = std::make_shared<ShadowMap>(
-        depth_shader, 2048);
+        depth_shader, 2048 * 6);
 }
 
 void initialise() {
@@ -626,8 +626,12 @@ int init_glfw() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
 
+
+
     win = glfwCreateWindow(w, h, "OpenGL Rectangle", nullptr, nullptr);
     if (!win) return 1;
+
+
 
     glfwMakeContextCurrent(win);
     glfwSwapInterval(1);
@@ -636,10 +640,17 @@ int init_glfw() {
 
     glEnable(GL_MULTISAMPLE);
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
     std::cout << "GLSL version: "   << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
     std::cout << "Renderer: "       << glGetString(GL_RENDERER) << std::endl;
     std::cout << "Vendor: "         << glGetString(GL_VENDOR) << std::endl;
+
+    int samples = 0;
+    glGetIntegerv(GL_SAMPLES, &samples);
+    std::cout << "MSAA samples: " << samples << std::endl;
 
     return 0;
 }
@@ -734,7 +745,7 @@ int main() {
         // -------------------
         // PASS 5: OVERLAYS (highlight uses blurredTex), then UI
         // -------------------
-        auto blockOpt = world.raycastBlock(camera.position, glm::normalize(camera.getFront()), 15);
+        auto blockOpt = world.raycastBlock(camera.position, glm::normalize(camera.getFront()), 5);
         if (blockOpt && render_block_highlight) {
             block_highlight_shader->use();
             block_highlight_shader->setInt("blurredScene", 0);
