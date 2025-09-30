@@ -1,0 +1,4 @@
+# ninja log v6
+0	35	1758449234500998217	CMakeFiles/LearningOpenGL.dir/main.cpp.o	892a9e0e364f94b7
+0	53	1758449234502128816	CMakeFiles/LearningOpenGL.dir/external/glad/gl.c.o	cb827b8ceddaf112
+53	86	1758449234553998494	LearningOpenGL	c2fa289351afbcb
