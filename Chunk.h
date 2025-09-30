@@ -13,7 +13,7 @@ static inline constexpr int CHUNK_SIZE = 16;
 class Chunk {
 public:
 
-  glm::vec3 position;
+  glm::ivec3 position;
 
   Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
 
