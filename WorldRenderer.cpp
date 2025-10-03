@@ -12,24 +12,40 @@ WorldRenderer::WorldRenderer(
   World &world)
   : shader(shaderPtr), texture_atlas(ta), world(world) {}
 
+void WorldRenderer::rebuildChunkMesh(Camera &cam, Chunk *chunk) {
+  (void)cam;
+  if (chunk == nullptr) {
+    return;
+  }
+
+  auto chunkObj = std::make_shared<ChunkObject>(shader, texture_atlas);
+  chunkObj->setChunk(chunk);
+
+  chunkObj->chunk_pos = {
+    chunk->position.x * CHUNK_SIZE,
+    chunk->position.y * CHUNK_SIZE,
+    chunk->position.z * CHUNK_SIZE
+  };
+
+  chunkObj->rebuildMesh(world);
+  visibleChunks.push_back(std::move(chunkObj));
+}
+
 void WorldRenderer::rebuildTheseChunks(
   Camera &cam,
-  std::vector<std::shared_ptr<Chunk>> chunks) {
+  const std::vector<std::shared_ptr<Chunk>> &chunks) {
 
-  for (auto& chunk : chunks) {
-    auto chunkObj = std::make_shared<ChunkObject>(shader, texture_atlas);
-    chunkObj->setChunk(chunk.get());
+  for (const auto& chunk : chunks) {
+    rebuildChunkMesh(cam, chunk.get());
+  }
+}
 
+void WorldRenderer::rebuildTheseChunks(
+  Camera &cam,
+  const std::vector<Chunk *> &chunks) {
 
-    chunkObj->chunk_pos = {
-      chunk->position.x * CHUNK_SIZE,
-      chunk->position.y * CHUNK_SIZE,
-      chunk->position.z * CHUNK_SIZE
-    };
-
-
-    chunkObj->rebuildMesh(world);
-    visibleChunks.push_back(chunkObj);
+  for (auto* chunk : chunks) {
+    rebuildChunkMesh(cam, chunk);
   }
 }
 

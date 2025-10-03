@@ -77,9 +77,11 @@ public:
 
   Chunk& getChunkAt(int x, int y, int z);
   Chunk* getChunkPtrAt(int x, int y, int z);
+  Chunk* tryGetChunkPtrAt(int x, int y, int z);
 
 
   Block& getBlockAt(int x, int y, int z);
+  Block* tryGetBlockAt(int x, int y, int z);
   void setBlockAt(int x, int y, int z, Block block);
 
   ChunkColumn &getOrCreateColumn(int cx, int cz);
