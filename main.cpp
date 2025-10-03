@@ -661,7 +661,7 @@ void game_logic() {
             place_block(BlockID::DiamondOre);
         }
         else if (right_click) {
-            break_block(BlockID::Stone);
+            break_block(BlockID::Air);
         }
     }
 

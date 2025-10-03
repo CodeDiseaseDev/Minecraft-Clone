@@ -12,37 +12,40 @@ WorldRenderer::WorldRenderer(
   World &world)
   : shader(shaderPtr), texture_atlas(ta), world(world) {}
 
+void WorldRenderer::rebuildChunkMesh(Camera &cam, Chunk *chunk) {
+  (void)cam;
+  if (chunk == nullptr) {
+    return;
+  }
+
+  auto chunkObj = std::make_shared<ChunkObject>(shader, texture_atlas);
+  chunkObj->setChunk(chunk);
+
+  chunkObj->chunk_pos = {
+    chunk->position.x * CHUNK_SIZE,
+    chunk->position.y * CHUNK_SIZE,
+    chunk->position.z * CHUNK_SIZE
+  };
+
+  chunkObj->rebuildMesh(world);
+  visibleChunks.push_back(std::move(chunkObj));
+}
+
 void WorldRenderer::rebuildTheseChunks(
   Camera &cam,
-  const std::vector<std::shared_ptr<Chunk>>& chunks) {
+  const std::vector<std::shared_ptr<Chunk>> &chunks) {
 
   for (const auto& chunk : chunks) {
-    if (!chunk) continue;
+    rebuildChunkMesh(cam, chunk.get());
+  }
+}
 
-    auto chunkPos = glm::vec3(
-      chunk->position.x * CHUNK_SIZE,
-      chunk->position.y * CHUNK_SIZE,
-      chunk->position.z * CHUNK_SIZE);
+void WorldRenderer::rebuildTheseChunks(
+  Camera &cam,
+  const std::vector<Chunk *> &chunks) {
 
-    auto existing = std::find_if(
-      visibleChunks.begin(),
-      visibleChunks.end(),
-      [&](const std::shared_ptr<ChunkObject>& obj) {
-        return obj && obj->chunk == chunk.get();
-      });
-
-    if (existing == visibleChunks.end()) {
-      auto chunkObj = std::make_shared<ChunkObject>(shader, texture_atlas);
-      chunkObj->setChunk(chunk.get());
-      chunkObj->chunk_pos = chunkPos;
-      chunkObj->rebuildMesh(world);
-      visibleChunks.push_back(chunkObj);
-    } else {
-      auto& chunkObj = *existing;
-      chunkObj->setChunk(chunk.get());
-      chunkObj->chunk_pos = chunkPos;
-      chunkObj->rebuildMesh(world);
-    }
+  for (auto* chunk : chunks) {
+    rebuildChunkMesh(cam, chunk);
   }
 }
 
