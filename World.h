@@ -25,7 +25,7 @@ struct RaycastHit {
 
 struct ChunkColumn {
 
-  std::array<std::shared_ptr<Chunk>, WORLD_HEIGHT_CHUNKS> chunks;
+  std::array<Chunk*, WORLD_HEIGHT_CHUNKS> chunks;
   glm::vec3 colCenter;
 };
 
@@ -65,7 +65,7 @@ private:
   int seed = 0;
   std::vector<std::shared_ptr<Chunk>> pendingChunks;
 
-  std::shared_ptr<Chunk> makeChunk(int chunk_x, int chunk_y, int chunk_z);
+  Chunk* makeChunk(int chunk_x, int chunk_y, int chunk_z);
 
 public:
   std::unordered_map<ChunkCoord, ChunkColumn, ChunkCoordHash> chunkColumns;

@@ -602,8 +602,8 @@ void set_block(glm::ivec3 pos, BlockID new_block) {
                 const bool alreadyQueued = std::any_of(
                     world_renderer->chunksToRebuild.begin(),
                     world_renderer->chunksToRebuild.end(),
-                    [&](const std::shared_ptr<Chunk>& queued) {
-                        return queued.get() == chunkPtr.get();
+                    [&](const Chunk* queued) {
+                        return queued == chunkPtr;
                     });
 
                 if (!alreadyQueued) {

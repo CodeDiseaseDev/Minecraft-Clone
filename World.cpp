@@ -13,8 +13,8 @@ Chunk & World::getChunkAt(int x, int y, int z) {
   return *getChunkPtrAt(x, y, z);
 }
 
-std::shared_ptr<Chunk> World::makeChunk(int chunk_x, int chunk_y, int chunk_z) {
-  return std::make_shared<Chunk>(chunk_x, chunk_y, chunk_z, seed);
+Chunk* World::makeChunk(int chunk_x, int chunk_y, int chunk_z) {
+  return new Chunk(chunk_x, chunk_y, chunk_z, seed);
 }
 
 Chunk* World::getChunkPtrAt(int x, int y, int z) {
@@ -31,7 +31,7 @@ Chunk* World::getChunkPtrAt(int x, int y, int z) {
     pendingChunks.emplace_back(std::move(new_chunk));
   }
 
-  return column.chunks[chunk_y].get();
+  return column.chunks[chunk_y];
 }
 
 
@@ -56,7 +56,7 @@ Chunk* World::tryGetChunkPtrAt(int x, int y, int z) {
     return nullptr;
   }
 
-  return chunk_ptr.get();
+  return chunk_ptr;
 }
 
 
