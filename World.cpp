@@ -5,8 +5,11 @@
 #include "World.h"
 
 #include <cfloat>
-#include <glm/common.hpp>
+#include <cmath>
 #include <iterator>
+#include <limits>
+#include <glm/common.hpp>
+#include <glm/geometric.hpp>
 // #include <glm/detail/func_geometric.inl>
 
 Chunk & World::getChunkAt(int x, int y, int z) {
@@ -217,25 +220,26 @@ std::optional<RaycastHit> World::raycastBlock(
   const glm::vec3 &direction,
   float maxDistance)
 {
+  if (glm::length(direction) <= std::numeric_limits<float>::epsilon()) {
+    return std::nullopt;
+  }
+
   glm::ivec3 voxel = glm::floor(origin);
 
   glm::ivec3 step(
-      direction.x > 0 ? 1 : -1,
-      direction.y > 0 ? 1 : -1,
-      direction.z > 0 ? 1 : -1
+      direction.x > 0 ? 1 : (direction.x < 0 ? -1 : 0),
+      direction.y > 0 ? 1 : (direction.y < 0 ? -1 : 0),
+      direction.z > 0 ? 1 : (direction.z < 0 ? -1 : 0)
   );
 
-  glm::vec3 tMax;
-  glm::vec3 tDelta;
+  glm::vec3 tMax(FLT_MAX);
+  glm::vec3 tDelta(FLT_MAX);
 
   for (int i = 0; i < 3; i++) {
-    if (direction[i] != 0) {
-      float voxelBorder = (step[i] > 0 ? (voxel[i] + 1.0f) : voxel[i]);
+    if (step[i] != 0) {
+      float voxelBorder = voxel[i] + (step[i] > 0 ? 1.0f : 0.0f);
       tMax[i] = (voxelBorder - origin[i]) / direction[i];
-      tDelta[i] = step[i] / direction[i];
-    } else {
-      tMax[i] = FLT_MAX;
-      tDelta[i] = FLT_MAX;
+      tDelta[i] = std::abs(1.0f / direction[i]);
     }
   }
 
@@ -248,32 +252,20 @@ std::optional<RaycastHit> World::raycastBlock(
       return RaycastHit{voxel, hitNormal};
     }
 
-    // Step to next voxel
-    if (tMax.x < tMax.y) {
-      if (tMax.x < tMax.z) {
-        voxel.x += step.x;
-        dist = tMax.x;
-        tMax.x += tDelta.x;
-        hitNormal = glm::ivec3(-step.x, 0, 0);
-      } else {
-        voxel.z += step.z;
-        dist = tMax.z;
-        tMax.z += tDelta.z;
-        hitNormal = glm::ivec3(0, 0, -step.z);
-      }
-    } else {
-      if (tMax.y < tMax.z) {
-        voxel.y += step.y;
-        dist = tMax.y;
-        tMax.y += tDelta.y;
-        hitNormal = glm::ivec3(0, -step.y, 0);
-      } else {
-        voxel.z += step.z;
-        dist = tMax.z;
-        tMax.z += tDelta.z;
-        hitNormal = glm::ivec3(0, 0, -step.z);
-      }
+    int axis = 0;
+    if (tMax.y < tMax.x) axis = 1;
+    if (tMax.z < tMax[axis]) axis = 2;
+
+    if (tMax[axis] > maxDistance) {
+      break;
     }
+
+    voxel[axis] += step[axis];
+    dist = tMax[axis];
+    tMax[axis] += tDelta[axis];
+
+    hitNormal = glm::ivec3(0);
+    hitNormal[axis] = -step[axis];
   }
 
   return std::nullopt;
