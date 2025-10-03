@@ -18,15 +18,43 @@ void WorldRenderer::rebuildChunkMesh(Camera &cam, Chunk *chunk) {
     return;
   }
 
+  auto sameChunk = [&](const std::shared_ptr<ChunkObject>& obj) {
+    return obj && obj->chunk == chunk;
+  };
+
+  bool updatedExisting = false;
+  for (auto it = visibleChunks.begin(); it != visibleChunks.end(); ) {
+    if (sameChunk(*it)) {
+      if (!updatedExisting) {
+        auto& chunkObj = *it;
+        chunkObj->setChunk(chunk);
+        chunkObj->chunk_pos = {
+          chunk->position.x * CHUNK_SIZE,
+          chunk->position.y * CHUNK_SIZE,
+          chunk->position.z * CHUNK_SIZE
+        };
+        chunkObj->rebuildMesh(world);
+        updatedExisting = true;
+        ++it;
+      } else {
+        it = visibleChunks.erase(it);
+      }
+    } else {
+      ++it;
+    }
+  }
+
+  if (updatedExisting) {
+    return;
+  }
+
   auto chunkObj = std::make_shared<ChunkObject>(shader, texture_atlas);
   chunkObj->setChunk(chunk);
-
   chunkObj->chunk_pos = {
     chunk->position.x * CHUNK_SIZE,
     chunk->position.y * CHUNK_SIZE,
     chunk->position.z * CHUNK_SIZE
   };
-
   chunkObj->rebuildMesh(world);
   visibleChunks.push_back(std::move(chunkObj));
 }
