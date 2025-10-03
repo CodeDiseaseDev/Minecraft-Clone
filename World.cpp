@@ -35,6 +35,31 @@ Chunk* World::getChunkPtrAt(int x, int y, int z) {
 }
 
 
+Chunk* World::tryGetChunkPtrAt(int x, int y, int z) {
+  int chunk_y = floorDiv(y, CHUNK_SIZE);
+  if (chunk_y < 0 || chunk_y >= WORLD_HEIGHT_CHUNKS) {
+    return nullptr;
+  }
+
+  int chunk_x = floorDiv(x, CHUNK_SIZE);
+  int chunk_z = floorDiv(z, CHUNK_SIZE);
+
+  ChunkCoord coord{chunk_x, chunk_z};
+  auto column_it = chunkColumns.find(coord);
+  if (column_it == chunkColumns.end()) {
+    return nullptr;
+  }
+
+  ChunkColumn& column = column_it->second;
+  const auto& chunk_ptr = column.chunks[chunk_y];
+  if (!chunk_ptr) {
+    return nullptr;
+  }
+
+  return chunk_ptr.get();
+}
+
+
 Block& World::getBlockAt(int x, int y, int z) {
   if (y < 0 || y >= WORLD_HEIGHT_CHUNKS * CHUNK_SIZE) {
     static Block air(BlockID::Air, {0,0,0});
@@ -49,6 +74,24 @@ Block& World::getBlockAt(int x, int y, int z) {
   int local_z = floorMod(z, CHUNK_SIZE);
 
   return chunk.blocks[local_x][local_y][local_z];
+}
+
+
+Block* World::tryGetBlockAt(int x, int y, int z) {
+  if (y < 0 || y >= WORLD_HEIGHT_CHUNKS * CHUNK_SIZE) {
+    return nullptr;
+  }
+
+  Chunk* chunk = tryGetChunkPtrAt(x, y, z);
+  if (!chunk) {
+    return nullptr;
+  }
+
+  int local_x = floorMod(x, CHUNK_SIZE);
+  int local_y = floorMod(y, CHUNK_SIZE);
+  int local_z = floorMod(z, CHUNK_SIZE);
+
+  return &chunk->blocks[local_x][local_y][local_z];
 }
 
 
@@ -261,6 +304,11 @@ std::vector<std::reference_wrapper<Block>> World::getNearbyBlocks(glm::vec3 vec)
 }
 
 bool World::isAir(int x, int y, int z) {
-  return getBlockAt(x, y, z).isAir();
+  Block* block = tryGetBlockAt(x, y, z);
+  if (!block) {
+    return true;
+  }
+
+  return block->isAir();
 }
 
