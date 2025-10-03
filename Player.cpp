@@ -43,20 +43,35 @@ void Player::useCamera(Camera& camera, bool thirdPerson) {
 
 
 bool Player::isStandingOnBlock(World &world) {
-  // Bottom of the player's bounding box
   float footY = position.y;
-
-  // Small epsilon so floating-point doesn't fail
   float epsilon = 0.05f;
 
-  // Check at foot level just below player
-  int blockX = static_cast<int>(std::floor(position.x));
-  int blockY = static_cast<int>(std::floor(footY - epsilon));
-  int blockZ = static_cast<int>(std::floor(position.z));
+  // Player's footprint (width/2)
+  float halfWidth = 0.3f; // ~0.6 wide like MC
+  float halfDepth = 0.3f;
 
-  auto block = world.getBlockAt(blockX, blockY, blockZ);
-  return !block.isAir(); // true if it's a solid block
+  // Candidate positions under each corner
+  std::vector<glm::vec3> checkPoints = {
+    { position.x - halfWidth, footY - epsilon, position.z - halfDepth },
+    { position.x + halfWidth, footY - epsilon, position.z - halfDepth },
+    { position.x - halfWidth, footY - epsilon, position.z + halfDepth },
+    { position.x + halfWidth, footY - epsilon, position.z + halfDepth },
+};
+
+  for (auto& p : checkPoints) {
+    int blockX = static_cast<int>(std::floor(p.x));
+    int blockY = static_cast<int>(std::floor(p.y));
+    int blockZ = static_cast<int>(std::floor(p.z));
+
+    auto block = world.getBlockAt(blockX, blockY, blockZ);
+    if (!block.isAir()) {
+      return true; // standing on something
+    }
+  }
+
+  return false;
 }
+
 
 void Player::gravityTick(World& world, float dt) {
   if (!is_on_ground) {

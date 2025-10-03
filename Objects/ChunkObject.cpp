@@ -3,6 +3,7 @@
 //
 
 #include "ChunkObject.h"
+#include "../World.h"
 
 
 ChunkObject::ChunkObject(std::shared_ptr<Shader>& s,
@@ -11,51 +12,75 @@ ChunkObject::ChunkObject(std::shared_ptr<Shader>& s,
 
 
 
-void ChunkObject::rebuildMesh() {
+
+void ChunkObject::rebuildMesh(World& world) {
   std::vector<Vertex> vertices;
   std::vector<unsigned int> indices;
 
-  if (chunk == nullptr) {
+  if (!chunk) {
     throw std::runtime_error("Chunk ptr is nullptr");
   }
 
   for (int x = 0; x < CHUNK_SIZE; ++x) {
     for (int y = 0; y < CHUNK_SIZE; ++y) {
       for (int z = 0; z < CHUNK_SIZE; ++z) {
-        auto& block = chunk->get(x, y, z);
+        const Block& block = chunk->get(x, y, z);
         if (block.isAir()) continue;
 
-        glm::vec3 pos(x, y, z);
+        // world position of this block (Y is up)
+        glm::ivec3 wp = chunk->toWorldCoords(x, y, z);
+        glm::vec3 lp(x, y, z); // local position for vertices
 
-        // +X face
-        if (x == CHUNK_SIZE-1 || chunk->isAir(x + 1, y, z))
-          addFace(vertices, indices, pos, faceVerts_PosX, normal_PosX, texCoords_270,  3,25);
+        // +X
+        if (world.isAir(wp.x + 1, wp.y, wp.z)) {
+          addFace(vertices, indices, lp,
+            faceVerts_PosX, normal_PosX, texCoords_270,
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_X]);
+        }
 
-        // -X face
-        if (x == 0 || chunk->isAir(x - 1, y, z))
-          addFace(vertices, indices, pos, faceVerts_NegX, normal_NegX, texCoords_270,  3,25);
+        // -X
+        if (world.isAir(wp.x - 1, wp.y, wp.z)) {
+          addFace(vertices, indices, lp,
+            faceVerts_NegX, normal_NegX, texCoords_270,
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_X]);
+        }
 
-        // +Y face (top)
-        if (y == CHUNK_SIZE-1 || chunk->isAir(x, y + 1, z))
-          addFace(vertices, indices, pos, faceVerts_PosY, normal_PosY, texCoords,  6,25);
+        // +Y (top)
+        if (world.isAir(wp.x, wp.y + 1, wp.z)) {
+          addFace(vertices, indices, lp,
+            faceVerts_PosY, normal_PosY, texCoords,
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_Y]);
+        }
 
-        // -Y face (bottom)
-        if (y == 0 || chunk->isAir(x, y - 1, z))
-          addFace(vertices, indices, pos, faceVerts_NegY, normal_NegY, texCoords_FlipV,  0,21);
+        // -Y (bottom)
+        if (world.isAir(wp.x, wp.y - 1, wp.z)) {
+          addFace(vertices, indices, lp,
+            faceVerts_NegY, normal_NegY, texCoords_FlipV,
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_Y]);
+        }
 
-        // +Z face (front)
-        if (z == CHUNK_SIZE-1 || chunk->isAir(x, y, z + 1))
-          addFace(vertices, indices, pos, faceVerts_PosZ, normal_PosZ, texCoords_FlipV,  3,25);
+        // +Z (front)
+        if (world.isAir(wp.x, wp.y, wp.z + 1)) {
+          addFace(vertices, indices, lp,
+            faceVerts_PosZ, normal_PosZ, texCoords_FlipV,
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_Z]);
+        }
 
-        // -Z face (back)
-        if (z == 0 || chunk->isAir(x, y, z - 1))
-          addFace(vertices, indices, pos, faceVerts_NegZ, normal_NegZ, texCoords_270,  3,25);
+        // -Z (back)
+        if (world.isAir(wp.x, wp.y, wp.z - 1)) {
+          addFace(vertices, indices, lp,
+            faceVerts_NegZ, normal_NegZ, texCoords_270,
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_Z]);
+        }
       }
     }
   }
 
   mesh = std::make_unique<Mesh>(vertices, indices);
 }
+
+
+
 
 
 glm::vec2 getUVForTile(int tileX, int tileY, glm::vec2 localUV) {
@@ -72,7 +97,7 @@ void ChunkObject::addFace(std::vector<Vertex>& vertices,
                           const glm::vec3 faceVerts[4],
                           const glm::vec3& normal,
                           const glm::vec2 texCoords[4],
-                          int tileX, int tileY)
+                          glm::vec2 face_tile_uv)
 {
   unsigned int startIndex = vertices.size();
   glm::vec3 color = {0.2f, 0.2f, 0.2f};
@@ -83,6 +108,8 @@ void ChunkObject::addFace(std::vector<Vertex>& vertices,
   const float tileSize    = 16.0f;
 
   // Compute UV bounds for this tile
+  int tileX = face_tile_uv.x;
+  int tileY = face_tile_uv.y;
   float u0 = (tileX * tileSize) / atlasWidth;
   float v0 = (tileY * tileSize) / atlasHeight;
   float u1 = ((tileX + 1) * tileSize) / atlasWidth;
@@ -90,7 +117,7 @@ void ChunkObject::addFace(std::vector<Vertex>& vertices,
 
   auto makeVertex = [&](int i, glm::vec3 bary) {
     Vertex v;
-    v.position = blockPos + faceVerts[i];
+    v.position = blockPos + faceVerts[i] - 0.5f;
     v.normal   = normal;
     v.color    = color;
 
@@ -137,6 +164,8 @@ void ChunkObject::draw(Camera &camera, std::shared_ptr<ShadowMap> shadow_map) co
 
   shader->setMat4("model", glm::translate(glm::mat4(1.0f), chunk_pos));
   shader->setVec4("_color", glm::vec4(0.8f, 0.8f, 0.8f, 1));
+
+
 
 
   texture_atlas->bind(0);

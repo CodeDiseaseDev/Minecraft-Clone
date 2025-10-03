@@ -14,11 +14,12 @@ WorldRenderer::WorldRenderer(
 
 void WorldRenderer::rebuildTheseChunks(
   Camera &cam,
-  const std::vector<std::shared_ptr<Chunk>> &chunks) {
+  std::vector<std::shared_ptr<Chunk>> chunks) {
 
   for (auto& chunk : chunks) {
     auto chunkObj = std::make_shared<ChunkObject>(shader, texture_atlas);
     chunkObj->setChunk(chunk.get());
+
 
     chunkObj->chunk_pos = {
       chunk->position.x * CHUNK_SIZE,
@@ -26,12 +27,16 @@ void WorldRenderer::rebuildTheseChunks(
       chunk->position.z * CHUNK_SIZE
     };
 
-    chunkObj->rebuildMesh();
+
+    chunkObj->rebuildMesh(world);
     visibleChunks.push_back(chunkObj);
   }
 }
 
-void WorldRenderer::draw(Camera &cam, std::shared_ptr<ShadowMap> shadow_map) const {
+void WorldRenderer::draw(Camera &cam, std::shared_ptr<ShadowMap> shadow_map) {
+
+  this->rebuildTheseChunks(cam, chunksToRebuild);
+  chunksToRebuild.clear();
 
   if (shader == nullptr) {
     throw std::runtime_error("Shader ptr is nullptr");

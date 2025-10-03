@@ -19,6 +19,8 @@ public:
 
   Chunk(int chunkX, int chunkY, int chunkZ, int seed);
 
+  glm::ivec3 toWorldCoords(int lx, int ly, int lz) const;
+
   bool isAir(int x, int y, int z) { return get(x, y, z).isAir(); }
   Block& get(int x, int y, int z) { return blocks[x][y][z]; }
   const Block& get(int x, int y, int z) const { return blocks[x][y][z]; }
@@ -28,3 +30,4 @@ public:
 
 
 #endif //CHUNK_H
+

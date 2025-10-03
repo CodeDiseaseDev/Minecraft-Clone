@@ -14,6 +14,15 @@
 
 #define WORLD_HEIGHT_CHUNKS (256 / 16) // 16 subchunks tall
 
+struct RaycastHit {
+  glm::ivec3 voxel;   // block position
+  glm::ivec3 normal;  // face normal of the block you hit
+
+  [[nodiscard]] glm::ivec3 adjacent() const {
+    return voxel + normal;
+  }
+};
+
 struct ChunkColumn {
 
   std::array<std::shared_ptr<Chunk>, WORLD_HEIGHT_CHUNKS> chunks;
@@ -64,6 +73,8 @@ public:
   World(int seed) : seed(seed) {}
 
   Chunk& getChunkAt(int x, int y, int z);
+  Chunk* getChunkPtrAt(int x, int y, int z);
+
 
   Block& getBlockAt(int x, int y, int z);
   void setBlockAt(int x, int y, int z, Block block);
@@ -73,12 +84,14 @@ public:
   std::vector<std::shared_ptr<Chunk>> ensureChunkAndNeighbors(
     int worldX, int worldY, int worldZ, int radius);
 
-  std::optional<glm::vec3> raycastBlock(
+  std::optional<RaycastHit> raycastBlock(
     const glm::vec3& origin,
     const glm::vec3& direction,
     float maxDistance);
 
   std::vector<std::reference_wrapper<Block>> getNearbyBlocks(glm::vec3 vec);
+
+  bool isAir(int x, int y, int z);
 };
 
 

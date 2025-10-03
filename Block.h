@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 #include <glm/ext/scalar_uint_sized.hpp>
 #include <glm/vec3.hpp>
 
@@ -8,6 +9,12 @@ enum class BlockID : glm::uint8 {
   Air = 0,
   Grass = 1,
   Stone = 2,
+  Dirt = 3,
+  DiamondOre = 4,
+};
+
+struct BlockUV {
+  glm::vec2 faces[6]; // +X, -X, +Y, -Y, +Z, -Z
 };
 
 class Block {

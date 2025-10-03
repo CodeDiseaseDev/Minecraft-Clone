@@ -77,6 +77,13 @@ void Shader::useCamera(Camera &camera) const {
     setFloat("shininess",          camera.lighting_shader_config.shininess);
     setFloat("vibrancy",           camera.lighting_shader_config.vibrancy);
     setFloat("contrast",           camera.lighting_shader_config.contrast);
+
+    setVec3("fogColor", camera.lighting_shader_config.fogColor);
+    setFloat("fogStart", camera.lighting_shader_config.fogStart);
+    setFloat("fogEnd", camera.lighting_shader_config.fogEnd);
+    setFloat("fogDensity", camera.lighting_shader_config.fogDensity);
+
+    setInt("pcfRadius", camera.lighting_shader_config.pcfRadius);
 }
 
 std::shared_ptr<Shader> Shader::loadFromName(const std::string name) {

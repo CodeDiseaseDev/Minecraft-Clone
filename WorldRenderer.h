@@ -26,11 +26,13 @@ public:
   std::shared_ptr<Shader> &shader;
   std::vector<std::shared_ptr<ChunkObject>> visibleChunks;
 
+  std::vector<std::shared_ptr<Chunk>> chunksToRebuild;
+
   std::shared_ptr<Texture>& texture_atlas;
   World &world;
 
 
-  explicit WorldRenderer(
+  WorldRenderer(
     std::shared_ptr<Shader>& shader,
     std::shared_ptr<Texture>& ta,
     World &world);
@@ -39,9 +41,9 @@ public:
 
   void rebuildTheseChunks(
     Camera& cam,
-    const std::vector<std::shared_ptr<Chunk>>& chunks);
+    std::vector<std::shared_ptr<Chunk>> chunks);
 
-  void draw(Camera& cam, std::shared_ptr<ShadowMap> shadow_map) const;
+  void draw(Camera& cam, std::shared_ptr<ShadowMap> shadow_map);
 
   void draw_depth_only(const glm::mat4& lightSpaceMatrix, const std::shared_ptr<Shader>& depthShader);
 

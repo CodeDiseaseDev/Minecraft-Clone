@@ -13,6 +13,7 @@
 #include "../Block.h"
 #include "../Chunk.h"
 #include "../Texture.h"
+#include "../BlockRegistry.h"
 
 const glm::vec3 faceVerts_PosX[4] = {
   {1, 0, 0},
@@ -97,7 +98,7 @@ const glm::vec2 texCoords_FlipV[4] = {
 };
 
 
-
+class World;
 
 class ChunkObject : public GameObject {
 public:
@@ -115,7 +116,7 @@ public:
     std::shared_ptr<Texture>& texture_atlas);
 
   // Called when world gen / block edits happen
-  void rebuildMesh();
+  void rebuildMesh(World& world);
 
   static void addFace(std::vector<Vertex>& vertices,
                           std::vector<unsigned int>& indices,
@@ -123,7 +124,7 @@ public:
                           const glm::vec3 faceVerts[4],
                           const glm::vec3& normal,
                           const glm::vec2 texCoords[4],
-                          int tileX, int tileY);
+                          glm::vec2 face_tile_uv);
 
   void Update(float dt) override;
 

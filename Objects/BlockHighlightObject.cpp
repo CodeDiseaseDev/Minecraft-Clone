@@ -60,7 +60,7 @@ void BlockHighlightObject::Draw(const glm::vec3 &blockPos, Camera &camera, const
   shader->use();
   shader->useCamera(camera);
 
-  glm::mat4 model = glm::translate(glm::mat4(1.0f), blockPos + 0.5f);
+  glm::mat4 model = glm::translate(glm::mat4(1.0f), blockPos);
   shader->setMat4("model", model);
   shader->setVec4("highlightColor", color);
 

@@ -53,6 +53,10 @@ add_executable(LearningOpenGL
         Objects/ShadowMap.cpp
         Objects/ShadowMap.h
         FastNoiseLite.h
+        Objects/PlayerObject.cpp
+        Objects/PlayerObject.h
+        BlockRegistry.cpp
+        BlockRegistry.h
 )
 
 target_include_directories(LearningOpenGL PRIVATE external)
