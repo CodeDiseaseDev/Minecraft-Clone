@@ -6,10 +6,15 @@
 
 #include <cfloat>
 #include <glm/common.hpp>
+#include <iterator>
 // #include <glm/detail/func_geometric.inl>
 
 Chunk & World::getChunkAt(int x, int y, int z) {
   return *getChunkPtrAt(x, y, z);
+}
+
+std::shared_ptr<Chunk> World::makeChunk(int chunk_x, int chunk_y, int chunk_z) {
+  return std::make_shared<Chunk>(chunk_x, chunk_y, chunk_z, seed);
 }
 
 Chunk* World::getChunkPtrAt(int x, int y, int z) {
@@ -21,7 +26,9 @@ Chunk* World::getChunkPtrAt(int x, int y, int z) {
   ChunkColumn& column = chunkColumns[coord];
 
   if (!column.chunks[chunk_y]) {
-    column.chunks[chunk_y] = std::make_unique<Chunk>(chunk_x, chunk_y, chunk_z, seed);
+    auto new_chunk = makeChunk(chunk_x, chunk_y, chunk_z);
+    column.chunks[chunk_y] = new_chunk;
+    pendingChunks.emplace_back(std::move(new_chunk));
   }
 
   return column.chunks[chunk_y].get();
@@ -104,6 +111,16 @@ ChunkColumn& World::getOrCreateColumn(int cx, int cz) {
 std::vector<std::shared_ptr<Chunk>> World::ensureChunkAndNeighbors(
   int worldX, int worldY, int worldZ, int radius) {
 
+  std::vector<std::shared_ptr<Chunk>> new_chunks;
+
+  if (!pendingChunks.empty()) {
+    new_chunks.insert(
+      new_chunks.end(),
+      std::make_move_iterator(pendingChunks.begin()),
+      std::make_move_iterator(pendingChunks.end()));
+    pendingChunks.clear();
+  }
+
   int cx = floorDiv(worldX, CHUNK_SIZE);
   int cz = floorDiv(worldZ, CHUNK_SIZE);
 
@@ -119,8 +136,6 @@ std::vector<std::shared_ptr<Chunk>> World::ensureChunkAndNeighbors(
   }
 
   // bool should_update = false;
-  std::vector<std::shared_ptr<Chunk>> new_chunks;
-
   for (int dx = -radius; dx <= radius; ++dx) {
     for (int dz = -radius; dz <= radius; ++dz) {
       // if (dx*dx + dz*dz > radius*radius) continue;
@@ -143,8 +158,9 @@ std::vector<std::shared_ptr<Chunk>> World::ensureChunkAndNeighbors(
 
       for (int ncy = 0; ncy < WORLD_HEIGHT_CHUNKS; ++ncy) {
         if (!col.chunks[ncy]) {
-          col.chunks[ncy] = std::make_shared<Chunk>(ncx, ncy, ncz, seed);
-          new_chunks.emplace_back(col.chunks[ncy]);
+          auto chunk = makeChunk(ncx, ncy, ncz);
+          col.chunks[ncy] = chunk;
+          new_chunks.emplace_back(std::move(chunk));
         }
       }
     }
