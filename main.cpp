@@ -8,6 +8,7 @@
 #include "Mesh.h"
 #include "Objects/MeshObject.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -588,11 +589,28 @@ void set_block(glm::ivec3 pos, BlockID new_block) {
         block
     );
 
-    if (auto chunkPtr = world.getChunkPtrAt(x, y, z)) {
-        // rebuild chunk next frame
-        // printf("0x%x\n", chunkPtr.get());
-        world_renderer->chunksToRebuild
-            .emplace_back(chunkPtr);
+    const int chunk_x = floorDiv(x, CHUNK_SIZE);
+    const int chunk_y = floorDiv(y, CHUNK_SIZE);
+    const int chunk_z = floorDiv(z, CHUNK_SIZE);
+
+    if (chunk_y >= 0 && chunk_y < WORLD_HEIGHT_CHUNKS) {
+        ChunkCoord coord{chunk_x, chunk_z};
+        auto column_it = world.chunkColumns.find(coord);
+        if (column_it != world.chunkColumns.end()) {
+            const auto &chunkPtr = column_it->second.chunks[chunk_y];
+            if (chunkPtr) {
+                const bool alreadyQueued = std::any_of(
+                    world_renderer->chunksToRebuild.begin(),
+                    world_renderer->chunksToRebuild.end(),
+                    [&](const std::shared_ptr<Chunk>& queued) {
+                        return queued.get() == chunkPtr.get();
+                    });
+
+                if (!alreadyQueued) {
+                    world_renderer->chunksToRebuild.emplace_back(chunkPtr);
+                }
+            }
+        }
     }
 }
 
