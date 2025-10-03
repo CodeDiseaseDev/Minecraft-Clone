@@ -26,7 +26,7 @@ public:
   std::shared_ptr<Shader> &shader;
   std::vector<std::shared_ptr<ChunkObject>> visibleChunks;
 
-  std::vector<std::shared_ptr<Chunk>> chunksToRebuild;
+  std::vector<Chunk*> chunksToRebuild;
 
   std::shared_ptr<Texture>& texture_atlas;
   World &world;
@@ -43,11 +43,18 @@ public:
     Camera& cam,
     const std::vector<std::shared_ptr<Chunk>>& chunks);
 
+  void rebuildTheseChunks(
+    Camera& cam,
+    const std::vector<Chunk*>& chunks);
+
   void draw(Camera& cam, std::shared_ptr<ShadowMap> shadow_map);
 
   void draw_depth_only(const glm::mat4& lightSpaceMatrix, const std::shared_ptr<Shader>& depthShader);
 
   void tick(glm::vec3 player_location, int render_distance);
+
+private:
+  void rebuildChunkMesh(Camera& cam, Chunk* chunk);
 };
 
 

@@ -13,8 +13,8 @@ Chunk & World::getChunkAt(int x, int y, int z) {
   return *getChunkPtrAt(x, y, z);
 }
 
-std::shared_ptr<Chunk> World::makeChunk(int chunk_x, int chunk_y, int chunk_z) {
-  return std::make_shared<Chunk>(chunk_x, chunk_y, chunk_z, seed);
+Chunk* World::makeChunk(int chunk_x, int chunk_y, int chunk_z) {
+  return new Chunk(chunk_x, chunk_y, chunk_z, seed);
 }
 
 Chunk* World::getChunkPtrAt(int x, int y, int z) {
@@ -31,7 +31,32 @@ Chunk* World::getChunkPtrAt(int x, int y, int z) {
     pendingChunks.emplace_back(std::move(new_chunk));
   }
 
-  return column.chunks[chunk_y].get();
+  return column.chunks[chunk_y];
+}
+
+
+Chunk* World::tryGetChunkPtrAt(int x, int y, int z) {
+  int chunk_y = floorDiv(y, CHUNK_SIZE);
+  if (chunk_y < 0 || chunk_y >= WORLD_HEIGHT_CHUNKS) {
+    return nullptr;
+  }
+
+  int chunk_x = floorDiv(x, CHUNK_SIZE);
+  int chunk_z = floorDiv(z, CHUNK_SIZE);
+
+  ChunkCoord coord{chunk_x, chunk_z};
+  auto column_it = chunkColumns.find(coord);
+  if (column_it == chunkColumns.end()) {
+    return nullptr;
+  }
+
+  ChunkColumn& column = column_it->second;
+  const auto& chunk_ptr = column.chunks[chunk_y];
+  if (!chunk_ptr) {
+    return nullptr;
+  }
+
+  return chunk_ptr;
 }
 
 
@@ -49,6 +74,24 @@ Block& World::getBlockAt(int x, int y, int z) {
   int local_z = floorMod(z, CHUNK_SIZE);
 
   return chunk.blocks[local_x][local_y][local_z];
+}
+
+
+Block* World::tryGetBlockAt(int x, int y, int z) {
+  if (y < 0 || y >= WORLD_HEIGHT_CHUNKS * CHUNK_SIZE) {
+    return nullptr;
+  }
+
+  Chunk* chunk = tryGetChunkPtrAt(x, y, z);
+  if (!chunk) {
+    return nullptr;
+  }
+
+  int local_x = floorMod(x, CHUNK_SIZE);
+  int local_y = floorMod(y, CHUNK_SIZE);
+  int local_z = floorMod(z, CHUNK_SIZE);
+
+  return &chunk->blocks[local_x][local_y][local_z];
 }
 
 
@@ -261,6 +304,11 @@ std::vector<std::reference_wrapper<Block>> World::getNearbyBlocks(glm::vec3 vec)
 }
 
 bool World::isAir(int x, int y, int z) {
-  return getBlockAt(x, y, z).isAir();
+  Block* block = tryGetBlockAt(x, y, z);
+  if (!block) {
+    return true;
+  }
+
+  return block->isAir();
 }
 

@@ -593,56 +593,24 @@ void set_block(glm::ivec3 pos, BlockID new_block) {
     const int chunk_y = floorDiv(y, CHUNK_SIZE);
     const int chunk_z = floorDiv(z, CHUNK_SIZE);
 
-    const auto queue_chunk = [&](int cx, int cy, int cz) {
-        if (cy < 0 || cy >= WORLD_HEIGHT_CHUNKS) {
-            return;
-        }
-
-        ChunkCoord coord{cx, cz};
+    if (chunk_y >= 0 && chunk_y < WORLD_HEIGHT_CHUNKS) {
+        ChunkCoord coord{chunk_x, chunk_z};
         auto column_it = world.chunkColumns.find(coord);
-        if (column_it == world.chunkColumns.end()) {
-            return;
+        if (column_it != world.chunkColumns.end()) {
+            const auto &chunkPtr = column_it->second.chunks[chunk_y];
+            if (chunkPtr) {
+                const bool alreadyQueued = std::any_of(
+                    world_renderer->chunksToRebuild.begin(),
+                    world_renderer->chunksToRebuild.end(),
+                    [&](const Chunk* queued) {
+                        return queued == chunkPtr;
+                    });
+
+                if (!alreadyQueued) {
+                    world_renderer->chunksToRebuild.emplace_back(chunkPtr);
+                }
+            }
         }
-
-        const auto &chunkPtr = column_it->second.chunks[cy];
-        if (!chunkPtr) {
-            return;
-        }
-
-        const bool alreadyQueued = std::any_of(
-            world_renderer->chunksToRebuild.begin(),
-            world_renderer->chunksToRebuild.end(),
-            [&](const std::shared_ptr<Chunk>& queued) {
-                return queued.get() == chunkPtr.get();
-            });
-
-        if (!alreadyQueued) {
-            world_renderer->chunksToRebuild.emplace_back(chunkPtr);
-        }
-    };
-
-    const int local_x = floorMod(x, CHUNK_SIZE);
-    const int local_y = floorMod(y, CHUNK_SIZE);
-    const int local_z = floorMod(z, CHUNK_SIZE);
-
-    queue_chunk(chunk_x, chunk_y, chunk_z);
-
-    if (local_x == 0) {
-        queue_chunk(chunk_x - 1, chunk_y, chunk_z);
-    } else if (local_x == CHUNK_SIZE - 1) {
-        queue_chunk(chunk_x + 1, chunk_y, chunk_z);
-    }
-
-    if (local_y == 0) {
-        queue_chunk(chunk_x, chunk_y - 1, chunk_z);
-    } else if (local_y == CHUNK_SIZE - 1) {
-        queue_chunk(chunk_x, chunk_y + 1, chunk_z);
-    }
-
-    if (local_z == 0) {
-        queue_chunk(chunk_x, chunk_y, chunk_z - 1);
-    } else if (local_z == CHUNK_SIZE - 1) {
-        queue_chunk(chunk_x, chunk_y, chunk_z + 1);
     }
 }
 
@@ -693,7 +661,7 @@ void game_logic() {
             place_block(BlockID::DiamondOre);
         }
         else if (right_click) {
-            break_block(BlockID::Stone);
+            break_block(BlockID::Air);
         }
     }
 
