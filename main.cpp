@@ -8,6 +8,7 @@
 #include "Mesh.h"
 #include "Objects/MeshObject.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -588,11 +589,60 @@ void set_block(glm::ivec3 pos, BlockID new_block) {
         block
     );
 
-    if (auto chunkPtr = world.getChunkPtrAt(x, y, z)) {
-        // rebuild chunk next frame
-        // printf("0x%x\n", chunkPtr.get());
-        world_renderer->chunksToRebuild
-            .emplace_back(chunkPtr);
+    const int chunk_x = floorDiv(x, CHUNK_SIZE);
+    const int chunk_y = floorDiv(y, CHUNK_SIZE);
+    const int chunk_z = floorDiv(z, CHUNK_SIZE);
+
+    const auto queue_chunk = [&](int cx, int cy, int cz) {
+        if (cy < 0 || cy >= WORLD_HEIGHT_CHUNKS) {
+            return;
+        }
+
+        ChunkCoord coord{cx, cz};
+        auto column_it = world.chunkColumns.find(coord);
+        if (column_it == world.chunkColumns.end()) {
+            return;
+        }
+
+        const auto &chunkPtr = column_it->second.chunks[cy];
+        if (!chunkPtr) {
+            return;
+        }
+
+        const bool alreadyQueued = std::any_of(
+            world_renderer->chunksToRebuild.begin(),
+            world_renderer->chunksToRebuild.end(),
+            [&](const std::shared_ptr<Chunk>& queued) {
+                return queued.get() == chunkPtr.get();
+            });
+
+        if (!alreadyQueued) {
+            world_renderer->chunksToRebuild.emplace_back(chunkPtr);
+        }
+    };
+
+    const int local_x = floorMod(x, CHUNK_SIZE);
+    const int local_y = floorMod(y, CHUNK_SIZE);
+    const int local_z = floorMod(z, CHUNK_SIZE);
+
+    queue_chunk(chunk_x, chunk_y, chunk_z);
+
+    if (local_x == 0) {
+        queue_chunk(chunk_x - 1, chunk_y, chunk_z);
+    } else if (local_x == CHUNK_SIZE - 1) {
+        queue_chunk(chunk_x + 1, chunk_y, chunk_z);
+    }
+
+    if (local_y == 0) {
+        queue_chunk(chunk_x, chunk_y - 1, chunk_z);
+    } else if (local_y == CHUNK_SIZE - 1) {
+        queue_chunk(chunk_x, chunk_y + 1, chunk_z);
+    }
+
+    if (local_z == 0) {
+        queue_chunk(chunk_x, chunk_y, chunk_z - 1);
+    } else if (local_z == CHUNK_SIZE - 1) {
+        queue_chunk(chunk_x, chunk_y, chunk_z + 1);
     }
 }
 

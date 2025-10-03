@@ -41,7 +41,7 @@ public:
 
   void rebuildTheseChunks(
     Camera& cam,
-    std::vector<std::shared_ptr<Chunk>> chunks);
+    const std::vector<std::shared_ptr<Chunk>>& chunks);
 
   void draw(Camera& cam, std::shared_ptr<ShadowMap> shadow_map);
 
