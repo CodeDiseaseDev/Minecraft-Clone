@@ -63,6 +63,9 @@ inline int floorMod(int a, int b) {
 class World {
 private:
   int seed = 0;
+  std::vector<std::shared_ptr<Chunk>> pendingChunks;
+
+  std::shared_ptr<Chunk> makeChunk(int chunk_x, int chunk_y, int chunk_z);
 
 public:
   std::unordered_map<ChunkCoord, ChunkColumn, ChunkCoordHash> chunkColumns;
