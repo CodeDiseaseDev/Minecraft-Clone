@@ -629,49 +629,6 @@ void place_block(BlockID block_id) {
     );
 }
 
-void move_player_with_collisions(const glm::vec3& offset) {
-    glm::vec3 movement = offset;
-
-    // Process each axis separately to resolve collisions.
-    for (int axis = 0; axis < 3; ++axis) {
-        float delta = movement[axis];
-        if (delta == 0.0f) continue;
-
-        player.position[axis] += delta;
-
-        AABB playerBox = player.getAABB();
-        auto nearbyBlocks = world.getNearbyBlocks(player.position);
-
-        for (auto& blockRef : nearbyBlocks) {
-            const Block& block = blockRef.get();
-            if (block.isAir()) continue;
-
-            AABB blockBox = block.getAABB();
-            if (!playerBox.intersects(blockBox)) continue;
-
-            if (delta > 0.0f) {
-                float penetration = playerBox.max[axis] - blockBox.min[axis];
-                player.position[axis] -= penetration;
-            } else {
-                float penetration = blockBox.max[axis] - playerBox.min[axis];
-                player.position[axis] += penetration;
-            }
-
-            if (axis == 1) {
-                player.gravity_velocity.y = 0.0f;
-                if (delta < 0.0f) {
-                    player.is_on_ground = true;
-                } else {
-                    player_jump_velocity.y = 0.0f;
-                }
-            }
-
-            // Update the player's AABB for subsequent collision checks on this axis.
-            playerBox = player.getAABB();
-        }
-    }
-}
-
 void game_logic() {
     ImGuiIO& io = ImGui::GetIO();
 
@@ -781,7 +738,7 @@ void game_logic() {
             camera.position += offset;
         }
         else {
-            move_player_with_collisions(offset);
+            player.position += offset;
         }
     }
     chunk_updater_tick(render_distance_radius);

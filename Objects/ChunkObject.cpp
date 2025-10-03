@@ -8,7 +8,7 @@
 
 ChunkObject::ChunkObject(std::shared_ptr<Shader>& s,
     std::shared_ptr<Texture>& ta):
-  shader(s), texture_atlas(ta), chunk(nullptr) {}
+  shader(s), texture_atlas(ta) {}
 
 
 
