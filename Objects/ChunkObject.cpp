@@ -6,14 +6,14 @@
 #include "../World.h"
 
 
-ChunkObject::ChunkObject(std::shared_ptr<Shader>& s,
-    std::shared_ptr<Texture>& ta):
+ChunkObject::ChunkObject(Shader* s,
+    Texture* ta):
   shader(s), texture_atlas(ta) {}
 
 
 
 
-void ChunkObject::rebuildMesh(World& world) {
+void ChunkObject::rebuildMesh(World* world) {
   std::vector<Vertex> vertices;
   std::vector<unsigned int> indices;
 
@@ -32,45 +32,45 @@ void ChunkObject::rebuildMesh(World& world) {
         glm::vec3 lp(x, y, z); // local position for vertices
 
         // +X
-        if (world.isAir(wp.x + 1, wp.y, wp.z)) {
+        if (world->isAir(wp.x + 1, wp.y, wp.z)) {
           addFace(vertices, indices, lp,
             faceVerts_PosX, normal_PosX, texCoords_270,
-            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_X]);
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_X], world);
         }
 
         // -X
-        if (world.isAir(wp.x - 1, wp.y, wp.z)) {
+        if (world->isAir(wp.x - 1, wp.y, wp.z)) {
           addFace(vertices, indices, lp,
             faceVerts_NegX, normal_NegX, texCoords_270,
-            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_X]);
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_X], world);
         }
 
         // +Y (top)
-        if (world.isAir(wp.x, wp.y + 1, wp.z)) {
+        if (world->isAir(wp.x, wp.y + 1, wp.z)) {
           addFace(vertices, indices, lp,
             faceVerts_PosY, normal_PosY, texCoords,
-            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_Y]);
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_Y], world);
         }
 
         // -Y (bottom)
-        if (world.isAir(wp.x, wp.y - 1, wp.z)) {
+        if (world->isAir(wp.x, wp.y - 1, wp.z)) {
           addFace(vertices, indices, lp,
             faceVerts_NegY, normal_NegY, texCoords_FlipV,
-            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_Y]);
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_Y], world);
         }
 
         // +Z (front)
-        if (world.isAir(wp.x, wp.y, wp.z + 1)) {
+        if (world->isAir(wp.x, wp.y, wp.z + 1)) {
           addFace(vertices, indices, lp,
             faceVerts_PosZ, normal_PosZ, texCoords_FlipV,
-            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_Z]);
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::POS_Z], world);
         }
 
         // -Z (back)
-        if (world.isAir(wp.x, wp.y, wp.z - 1)) {
+        if (world->isAir(wp.x, wp.y, wp.z - 1)) {
           addFace(vertices, indices, lp,
             faceVerts_NegZ, normal_NegZ, texCoords_270,
-            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_Z]);
+            BlockRegistry::BlockUVs[block.id].faces[FaceIndex::NEG_Z], world);
         }
       }
     }
@@ -97,7 +97,7 @@ void ChunkObject::addFace(std::vector<Vertex>& vertices,
                           const glm::vec3 faceVerts[4],
                           const glm::vec3& normal,
                           const glm::vec2 texCoords[4],
-                          glm::vec2 face_tile_uv)
+                          glm::vec2 face_tile_uv, World* world)
 {
   unsigned int startIndex = vertices.size();
   glm::vec3 color = {0.2f, 0.2f, 0.2f};
@@ -121,15 +121,50 @@ void ChunkObject::addFace(std::vector<Vertex>& vertices,
     v.normal   = normal;
     v.color    = color;
 
-    glm::vec2 localUV = texCoords[i]; // (0,0),(1,0),(1,1),(0,1)
+    glm::vec2 localUV = texCoords[i];
     v.texCoord = {
       u0 + localUV.x * (u1 - u0),
       v0 + localUV.y * (v1 - v0)
     };
-
     v.bary = bary;
+
+    // --- AO: robust per-corner sampling ---
+    // Block world coords (of this block)
+    glm::ivec3 wp = this->chunk->toWorldCoords(
+        (int)blockPos.x, (int)blockPos.y, (int)blockPos.z);
+
+    // Step one cell OUTSIDE the face (so we test neighbors that occlude this face)
+    glm::ivec3 nstep = glm::ivec3(
+        (int)glm::round(normal.x),
+        (int)glm::round(normal.y),
+        (int)glm::round(normal.z)
+    );
+    glm::ivec3 base = wp + nstep; // <- critical: outside the face
+
+    // Corner signs from the actual corner coordinates (0 or 1)
+    const int sx = (faceVerts[i].x > 0.5f) ? +1 : -1;
+    const int sy = (faceVerts[i].y > 0.5f) ? +1 : -1;
+    const int sz = (faceVerts[i].z > 0.5f) ? +1 : -1;
+
+    // Choose the two tangent directions automatically
+    glm::ivec3 side1(0), side2(0);
+    if (nstep.x != 0) {            // ±X face -> tangents are Y and Z
+      side1 = {0, sy, 0};
+      side2 = {0, 0, sz};
+    } else if (nstep.y != 0) {     // ±Y face -> tangents are X and Z
+      side1 = {sx, 0, 0};
+      side2 = {0, 0, sz};
+    } else {                       // ±Z face -> tangents are X and Y
+      side1 = {sx, 0, 0};
+      side2 = {0, sy, 0};
+    }
+
+    v.aoFactor = computeAO(world, base, side1, side2, side1 + side2);
+
     return v;
   };
+
+
 
   vertices.push_back(makeVertex(0, {1,0,0}));
   vertices.push_back(makeVertex(1, {0,1,0}));
@@ -152,7 +187,7 @@ void ChunkObject::Update(float dt) {
   // chunks usually don’t need much here
 }
 
-void ChunkObject::draw(Camera &camera, std::shared_ptr<ShadowMap> shadow_map) const {
+void ChunkObject::draw(Camera &camera, ShadowMap* shadow_map) const {
 
 
   if (shader == nullptr) {
@@ -161,15 +196,18 @@ void ChunkObject::draw(Camera &camera, std::shared_ptr<ShadowMap> shadow_map) co
 
   shader->use();
   shader->useCamera(camera);
+  shader->useCameraWorldMesh(camera);
+  shader->useCameraLighting(camera);
 
   shader->setMat4("model", glm::translate(glm::mat4(1.0f), chunk_pos));
-  shader->setVec4("_color", glm::vec4(0.8f, 0.8f, 0.8f, 1));
+  // shader->setVec4("_color", glm::vec4(0.8f, 0.8f, 0.8f, 1));
 
 
 
 
   texture_atlas->bind(0);
   shader->setInt("atlas", 0);
+  shader->setInt("useAtlas", 1);
 
   if (shadow_map) {
     shader->setMat4("lightSpaceMatrix", shadow_map->LastLightSpace());
@@ -195,6 +233,25 @@ AABB ChunkObject::getChunkBoundingBox() {
 
   return {min, max};
 }
+
+
+// Calculate AO factor for a vertex given its adjacent block states
+float ChunkObject::computeAO(World* world, glm::ivec3 basePos,
+                             glm::ivec3 side1, glm::ivec3 side2,
+                             glm::ivec3 corner)
+{
+  bool s1 = !world->isAir(basePos + side1);
+  bool s2 = !world->isAir(basePos + side2);
+  bool c  = !world->isAir(basePos + corner);
+
+  int occ = (s1 && s2) ? 3 : (int)s1 + (int)s2 + (int)c;
+  float ao = 1.0f - (occ / 3.0f);
+
+  // optional: gentle bias so corners aren’t pitch black
+  return glm::clamp(ao * 0.9f + 0.1f, 0.0f, 1.0f);
+}
+
+
 
 
 

@@ -28,6 +28,7 @@ public:
   glm::vec3 position;
   // glm::vec3 sunDirection{30, -90, 0};
   glm::vec3 rotation;
+  glm::vec2 screenSize;
 
   lighting_config lighting_shader_config;
 
@@ -36,6 +37,8 @@ public:
   float fov, aspect, nearPlane, farPlane;
 
   Camera(float aspectRatio);
+
+  void setScreenSize(float width, float height);
 
   glm::mat4 getViewMatrix() const;
 
@@ -48,6 +51,8 @@ public:
   bool isBoxInFrustum(AABB bounding_box);
 
   Frustum extractFrustum();
+
+  glm::vec3 GetForwardVector() const;
 };
 
 

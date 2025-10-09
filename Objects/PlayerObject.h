@@ -19,10 +19,12 @@
 
 class PlayerObject {
 public:
-  PlayerObject(std::shared_ptr<Shader> s, std::shared_ptr<Texture> tex);
+  PlayerObject(arena::Allocator<std::byte>& arena, Shader* s, Texture* tex);
+
+  arena::Allocator<std::byte>& arena;
 
   void update(float dt);
-  void draw(Camera& camera, std::shared_ptr<ShadowMap> shadow_map) const;
+  void draw(Camera& camera, ShadowMap* shadow_map) const;
 
   // Transform
   glm::vec3 position {0.0f, 0.0f, 0.0f};
@@ -35,18 +37,20 @@ public:
   float rightLegAngle = 0.0f;
 
 private:
-  std::shared_ptr<Shader> shader;
-  std::shared_ptr<Texture> texture_atlas;
+  Shader* shader;
+  Texture* texture_atlas;
 
   // Meshes for body parts
-  std::unique_ptr<Mesh> torso;
-  std::unique_ptr<Mesh> head;
-  std::unique_ptr<Mesh> leftArm;
-  std::unique_ptr<Mesh> rightArm;
-  std::unique_ptr<Mesh> leftLeg;
-  std::unique_ptr<Mesh> rightLeg;
+  Mesh* torso;
+  Mesh* head;
+  Mesh* leftArm;
+  Mesh* rightArm;
+  Mesh* leftLeg;
+  Mesh* rightLeg;
 
-  std::unique_ptr<Mesh> makeCubeMesh(glm::vec3 size);
+  Mesh* makeCubeMesh(glm::vec3 size);
+
+
 };
 
 

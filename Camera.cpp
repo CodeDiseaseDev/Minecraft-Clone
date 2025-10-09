@@ -9,8 +9,12 @@
 
 Camera::Camera(float aspectRatio):
                               fov(45.0f), aspect(aspectRatio),
-                              nearPlane(0.1f), farPlane(1000.0f),
+                              nearPlane(0.02f), farPlane(1000.0f),
                               rotation(0,0,0) {}
+
+void Camera::setScreenSize(float width, float height) {
+  screenSize = glm::vec2(width, height);
+}
 
 glm::mat4 Camera::getViewMatrix() const {
   return glm::lookAt(position, position + getFront(), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -88,6 +92,17 @@ Frustum Camera::extractFrustum() {
   }
 
   return f;
+}
+
+glm::vec3 Camera::GetForwardVector() const {
+  float yawRad = glm::radians(rotation.y);
+  float pitchRad = glm::radians(rotation.x);
+
+  return glm::normalize(glm::vec3(
+      cos(pitchRad) * cos(yawRad),
+      sin(pitchRad),
+      cos(pitchRad) * sin(yawRad)
+  ));
 }
 
 bool Camera::isBoxInFrustum(AABB bounding_box) {

@@ -23,33 +23,35 @@ inline const std::array<std::tuple<int,int,int>, 6> neighborOffsets = {{
 
 class WorldRenderer {
 public:
-  std::shared_ptr<Shader> &shader;
-  std::vector<std::shared_ptr<ChunkObject>> visibleChunks;
+  Shader* shader;
+  std::vector<ChunkObject*> visibleChunks;
 
   std::vector<Chunk*> chunksToRebuild;
 
-  std::shared_ptr<Texture>& texture_atlas;
-  World &world;
+  Texture* texture_atlas;
+  World* world;
 
+  arena::Allocator<std::byte>& allocator;
 
   WorldRenderer(
-    std::shared_ptr<Shader>& shader,
-    std::shared_ptr<Texture>& ta,
-    World &world);
+    Shader* shaderPtr,
+    Texture* ta,
+    World* world,
+    arena::Allocator<std::byte>& allocator);
 
   // void rebuildVisibleChunks(World& world, Camera& cam);
 
-  void rebuildTheseChunks(
-    Camera& cam,
-    const std::vector<std::shared_ptr<Chunk>>& chunks);
+  // void rebuildTheseChunks(
+  //   Camera& cam,
+  //   const std::vector<std::shared_ptr<Chunk>>& chunks);
 
   void rebuildTheseChunks(
     Camera& cam,
     const std::vector<Chunk*>& chunks);
 
-  void draw(Camera& cam, std::shared_ptr<ShadowMap> shadow_map);
+  void draw(Camera& cam, ShadowMap* shadow_map);
 
-  void draw_depth_only(const glm::mat4& lightSpaceMatrix, const std::shared_ptr<Shader>& depthShader);
+  void draw_depth_only(const glm::mat4& lightSpaceMatrix, const Shader* depthShader);
 
   void tick(glm::vec3 player_location, int render_distance);
 

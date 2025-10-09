@@ -10,11 +10,13 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "arena_alloc.h"
 #include "Camera.h"
 
 class Shader {
 public:
   unsigned int ID;
+  std::string shader_name;
 
   // New: generic constructor (list of {src, type})
   Shader(const std::vector<std::pair<const char*, GLenum>>& sources, const char* name);
@@ -24,6 +26,8 @@ public:
 
   void use() const;
 
+  bool isValid() const;
+
   void setFloat(const std::string &name, float value) const;
   void setVec3(const std::string& name, const glm::vec3& v) const;
   void setVec2(const std::string& name, const glm::vec2& v) const;
@@ -32,8 +36,18 @@ public:
   void setInt(const std::string &name, const int value) const;
 
   void useCamera(Camera& camera) const;
+  void useCameraWorldMesh(Camera& camera);
+  void useCameraLighting(Camera& camera);
 
-  static std::shared_ptr<Shader> loadFromName(std::string name);
+  // void setScreenSize(int width, int height) const;
+
+  void uniformNotFound(const std::string& name) const;
+
+  void reload();
+
+  static Shader* loadFromName(const std::string name, arena::Allocator<std::byte>& allocator);
+
+  ~Shader();
 
 private:
   GLuint compile(GLenum type, const char* src);

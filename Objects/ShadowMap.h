@@ -16,7 +16,7 @@
 
 class ShadowMap: public GameObject {
 public:
-  ShadowMap(std::shared_ptr<Shader> &depthShader, int resolution = 2048);
+  ShadowMap(Shader* depthShader, int resolution = 2048);
   ~ShadowMap();
 
   void Resize(int resolution);
@@ -24,8 +24,7 @@ public:
   void EndDepthPass();
 
   GLuint GetDepthMap() const { return depthMap; }
-  glm::mat4 GetLightSpaceMatrix(const glm::vec3& sunDir,
-                                         const glm::vec3& center);
+  glm::mat4 GetLightSpaceMatrix(const glm::vec3& sunDir, const Camera& camera);
 
   const glm::mat4& LastLightSpace() const { return lastLightSpace_; }
   const glm::vec3& LastLightPosition() const { return lastLightPos_; }
@@ -42,7 +41,7 @@ private:
   glm::mat4 lastLightSpace_{1.0f};
   glm::vec3 lastLightPos_{0.0f};
 
-  std::shared_ptr<Shader>& shader;
+  Shader* shader;
 
   void Init(int res);
 

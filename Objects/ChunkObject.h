@@ -105,34 +105,38 @@ public:
   std::shared_ptr<Mesh> mesh;
 
 
-  std::shared_ptr<Shader>& shader;
-  std::shared_ptr<Texture>& texture_atlas;
+  Shader* shader;
+  Texture* texture_atlas;
   Chunk* chunk;
 
   glm::vec3 chunk_pos {0,0,0};
 
 
-  explicit ChunkObject(std::shared_ptr<Shader>& s,
-    std::shared_ptr<Texture>& texture_atlas);
+  explicit ChunkObject(Shader* s,
+    Texture* ta);
 
   // Called when world gen / block edits happen
-  void rebuildMesh(World& world);
+  void rebuildMesh(World* world);
 
-  static void addFace(std::vector<Vertex>& vertices,
+  void addFace(std::vector<Vertex>& vertices,
                           std::vector<unsigned int>& indices,
                           const glm::vec3& blockPos,
                           const glm::vec3 faceVerts[4],
                           const glm::vec3& normal,
                           const glm::vec2 texCoords[4],
-                          glm::vec2 face_tile_uv);
+                          glm::vec2 face_tile_uv, World* world);
 
   void Update(float dt) override;
 
-  void draw(Camera& camera, std::shared_ptr<ShadowMap> shadow_map) const;
+  void draw(Camera& camera, ShadowMap* shadow_map) const;
 
   void setChunk(Chunk* chunk);
 
   AABB getChunkBoundingBox();
+
+  static float computeAO(World* world, glm::ivec3 basePos,
+                       glm::ivec3 side1, glm::ivec3 side2,
+                       glm::ivec3 corner);
 };
 
 

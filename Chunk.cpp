@@ -7,6 +7,7 @@
 #include <cmath>
 #include <memory>
 #include <cstdlib>
+#include <vector>
 
 #include "FastNoiseLite.h"
 
@@ -83,6 +84,10 @@ Chunk::Chunk(int chunkX, int chunkY, int chunkZ, int seed) {
           }
 
 
+          if (worldY > 10) {
+            blocks[x][y][z] = Block{ BlockID::Air };
+
+          }
         }
         else {
           blocks[x][y][z] = Block{ BlockID::Air };

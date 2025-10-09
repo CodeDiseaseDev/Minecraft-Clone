@@ -5,7 +5,7 @@
 
 #include <cmath>
 
-ShadowMap::ShadowMap(std::shared_ptr<Shader>& depthShader, int res)
+ShadowMap::ShadowMap(Shader* depthShader, int res)
     : resolution(res), shader(depthShader) {
     Init(resolution);
 }
@@ -52,8 +52,8 @@ void ShadowMap::Resize(int newRes) {
     Init(newRes);
 }
 
-glm::mat4 ShadowMap::GetLightSpaceMatrix(const glm::vec3& sunDir, const glm::vec3& center) {
-    float near_plane = 1.0f, far_plane = 300.0f;
+glm::mat4 ShadowMap::GetLightSpaceMatrix(const glm::vec3& sunDir, const Camera& cam) {
+    float near_plane = cam.nearPlane, far_plane = cam.farPlane;
     float orthoSize = 100.0f; // cover your scene
 
     glm::mat4 lightProjection = glm::ortho(-orthoSize, orthoSize,
@@ -63,15 +63,18 @@ glm::mat4 ShadowMap::GetLightSpaceMatrix(const glm::vec3& sunDir, const glm::vec
     glm::vec3 dir = glm::length(sunDir) > 0.0001f ? glm::normalize(sunDir)
                                                   : glm::vec3(0.0f, -1.0f, 0.0f);
     float lightDistance = 100.0f;
-    lastLightPos_ = center - dir * lightDistance; // place light opposite the sunDir
+    lastLightPos_ = cam.position - dir * lightDistance; // place light opposite the sunDir
 
     glm::vec3 up = std::abs(glm::dot(dir, glm::vec3(0.0f, 1.0f, 0.0f))) > 0.99f
                         ? glm::vec3(0.0f, 0.0f, 1.0f)
                         : glm::vec3(0.0f, 1.0f, 0.0f);
 
-    glm::mat4 lightView = glm::lookAt(lastLightPos_, center, up);
+    glm::mat4 lightView = glm::lookAt(lastLightPos_, cam.position, up);
 
     return lightProjection * lightView;
+
+
+
 }
 
 

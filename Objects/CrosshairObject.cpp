@@ -4,7 +4,7 @@
 
 #include "CrosshairObject.h"
 
-CrosshairObject::CrosshairObject(std::shared_ptr<Shader>& shader, std::shared_ptr<Texture>& text)
+CrosshairObject::CrosshairObject(Shader* shader, Texture* text)
     : shader(shader), texture(text)
 {
   float vertices[] = {

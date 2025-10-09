@@ -7,10 +7,12 @@
 #include <algorithm>
 
 WorldRenderer::WorldRenderer(
-  std::shared_ptr<Shader>& shaderPtr,
-  std::shared_ptr<Texture>& ta,
-  World &world)
-  : shader(shaderPtr), texture_atlas(ta), world(world) {}
+  Shader* shaderPtr,
+  Texture* ta,
+  World* world,
+  arena::Allocator<std::byte>& arena)
+  : shader(shaderPtr), texture_atlas(ta), world(world), allocator(arena) {
+}
 
 void WorldRenderer::rebuildChunkMesh(Camera &cam, Chunk *chunk) {
   (void)cam;
@@ -18,27 +20,54 @@ void WorldRenderer::rebuildChunkMesh(Camera &cam, Chunk *chunk) {
     return;
   }
 
-  auto chunkObj = std::make_shared<ChunkObject>(shader, texture_atlas);
-  chunkObj->setChunk(chunk);
 
-  chunkObj->chunk_pos = {
+
+  glm::vec3 pos = {
     chunk->position.x * CHUNK_SIZE,
     chunk->position.y * CHUNK_SIZE,
     chunk->position.z * CHUNK_SIZE
   };
 
-  chunkObj->rebuildMesh(world);
-  visibleChunks.push_back(std::move(chunkObj));
-}
 
-void WorldRenderer::rebuildTheseChunks(
-  Camera &cam,
-  const std::vector<std::shared_ptr<Chunk>> &chunks) {
 
-  for (const auto& chunk : chunks) {
-    rebuildChunkMesh(cam, chunk.get());
+  auto fChunk = std::find_if(
+    visibleChunks.begin(),
+    visibleChunks.end(), [&](ChunkObject* pChunk) {
+
+    return pChunk->chunk_pos - 0.5f == pos;
+  });
+
+  ChunkObject* chunkObj = nullptr;
+
+  if (fChunk != visibleChunks.end()) {
+    // ChunkObject* ch = *fChunk;
+    // AUTO_DEALLOCATE_CA(allocator, Chunk, ch->chunk);
+    // ch->setChunk(chunk);
+
+    chunkObj = *fChunk;
   }
+  else {
+    chunkObj = arena_allocate<ChunkObject>(
+      allocator, shader, texture_atlas);
+
+    visibleChunks.push_back(chunkObj);
+    chunkObj->chunk_pos = pos + 0.5f;
+  }
+
+
+  chunkObj->setChunk(chunk);
+  chunkObj->rebuildMesh(world);
+
 }
+
+// void WorldRenderer::rebuildTheseChunks(
+//   Camera &cam,
+//   const std::vector<std::shared_ptr<Chunk>> &chunks) {
+//
+//   for (const auto& chunk : chunks) {
+//     rebuildChunkMesh(cam, chunk.get());
+//   }
+// }
 
 void WorldRenderer::rebuildTheseChunks(
   Camera &cam,
@@ -49,7 +78,7 @@ void WorldRenderer::rebuildTheseChunks(
   }
 }
 
-void WorldRenderer::draw(Camera &cam, std::shared_ptr<ShadowMap> shadow_map) {
+void WorldRenderer::draw(Camera &cam, ShadowMap* shadow_map) {
 
   this->rebuildTheseChunks(cam, chunksToRebuild);
   chunksToRebuild.clear();
@@ -65,7 +94,7 @@ void WorldRenderer::draw(Camera &cam, std::shared_ptr<ShadowMap> shadow_map) {
 
 void WorldRenderer::draw_depth_only(
   const glm::mat4 &lightSpaceMatrix,
-  const std::shared_ptr<Shader> &depthShader) {
+  const Shader* depthShader) {
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);

@@ -13,6 +13,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "arena_alloc.h"
+#include "build_config.h"
 #include "EaseValue.h"
 #include "EaseVec3.h"
 #include "Player.h"
@@ -23,6 +25,7 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
+#include "Objects/BatchShapeRenderer.h"
 #include "Objects/BlockHighlightObject.h"
 #include "Objects/ChunkObject.h"
 #include "Objects/CrosshairObject.h"
@@ -30,10 +33,25 @@
 #include "Objects/PlayerObject.h"
 #include "Objects/ShadowMap.h"
 
+// #include "DiscordGameSDK/types.h"
+
 // std::unique_ptr<MeshObject> mesh_object;
 // std::unique_ptr<ChunkObject> chunk_object;
 
-World world = World(0);
+
+// std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
+// std::cout << "GLSL version: "   << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+// std::cout << "Renderer: "       << glGetString(GL_RENDERER) << std::endl;
+// std::cout << "Vendor: "         << glGetString(GL_VENDOR) << std::endl;
+
+struct hardware_info {
+    const char* OpenGLVersion;
+    const char* GLSLVersion;
+    const char* GraphicsHardware;
+    const char* GraphicsVendor;
+};
+
+World* world;
 Player player;
 
 float frames_per_second = 0;
@@ -43,68 +61,179 @@ Camera camera(16/9);
 GLfloat deltaTime = 0.0f;
 GLfloat lastFrame = 0.0f;
 
-
+hardware_info hwinfo;
 
 std::optional<RaycastHit> camera_block_raycast_hit;
 
 EaseVec3 player_wasd_velocity {};
-glm::vec3 player_jump_velocity {};
+// glm::vec3 player_jump_velocity {};
 EaseVec3 block_selection_pos {};
 EaseValue camera_zoom{camera.fov, camera.fov};
 
 // aspect ratio gets updated every frame
 
 
-float normal_fov = 120;
-float zoomed_fov = 40;
 
-float camera_sensitivity = 25.0f;
-bool mouse_captured = false;
 
-int render_distance_radius = 1;
 
-bool third_person = false;
+float normal_fov;
+float zoomed_fov;
 
-bool render_world = true;
-bool render_block_highlight = true;
+float camera_sensitivity;
+bool mouse_captured;
 
-bool free_cam = false;
+int render_distance_radius;
+
+bool third_person;
+
+bool render_world;
+bool render_block_highlight;
+
+bool free_cam;
 
 int w = 600,
     h = 600;
 
 
-float walk_speed = 4.0f;
-float sprint_speed = walk_speed * 2.0f;
-float jump_height = 10.0f;
+float walk_speed;
+float sprint_speed;
+// float jump_height;
 EaseValue wasd_movement_speed {walk_speed, sprint_speed};
 
-std::shared_ptr<Shader> shader;
-std::shared_ptr<Shader> block_highlight_shader;
-std::shared_ptr<WorldRenderer> world_renderer;
+// std::shared_ptr<Shader> shader;
+// std::shared_ptr<Shader> block_highlight_shader;
+// std::shared_ptr<WorldRenderer> world_renderer;
+//
+// std::shared_ptr<BlockHighlightObject> block_highlight_object;
+//
+// std::shared_ptr<Texture> texture_atlas;
+//
+//
+// std::shared_ptr<Shader> crosshair_shader;
+//
+// std::shared_ptr<CrosshairObject> crosshair_object;
+// std::shared_ptr<Texture> crosshair_texture;
+//
+// std::shared_ptr<GaussianBlurObject> blur_object;
+// std::shared_ptr<Shader> horizontal_blur_shader;
+// std::shared_ptr<Shader> vertical_blur_shader;
+// std::shared_ptr<SceneFramebuffer> sceneFBO;
+//
+// std::shared_ptr<Shader> depth_shader;
+// std::shared_ptr<ShadowMap> shadow_depth_map;
+//
+// std::shared_ptr<Shader> player_shader;
+// std::shared_ptr<PlayerObject> player_object;
 
-std::shared_ptr<BlockHighlightObject> block_highlight_object;
+arena::Allocator<std::byte> engineArena;
 
-std::shared_ptr<Texture> texture_atlas;
+Shader* shader = nullptr;
+Shader* block_highlight_shader = nullptr;
+WorldRenderer* world_renderer = nullptr;
+
+BlockHighlightObject* block_highlight_object = nullptr;
+
+Texture* texture_atlas = nullptr;
 
 
-std::shared_ptr<Shader> crosshair_shader;
+Shader* crosshair_shader = nullptr;
+Texture* crosshair_texture = nullptr;
 
-std::shared_ptr<CrosshairObject> crosshair_object;
-std::shared_ptr<Texture> crosshair_texture;
+GaussianBlurObject* blur_object = nullptr;
+Shader* horizontal_blur_shader = nullptr;
+Shader* vertical_blur_shader = nullptr;
+SceneFramebuffer* sceneFBO = nullptr;
 
-std::shared_ptr<GaussianBlurObject> blur_object;
-std::shared_ptr<Shader> horizontal_blur_shader;
-std::shared_ptr<Shader> vertical_blur_shader;
-std::shared_ptr<SceneFramebuffer> sceneFBO;
+Shader* depth_shader = nullptr;
+ShadowMap* shadow_depth_map = nullptr;
 
-std::shared_ptr<Shader> depth_shader;
-std::shared_ptr<ShadowMap> shadow_depth_map;
+Shader* player_shader = nullptr;
+PlayerObject* player_object = nullptr;
 
-std::shared_ptr<Shader> player_shader;
-std::shared_ptr<PlayerObject> player_object;
+Shader* batch_renderer_shader = nullptr;
+BatchShapeRenderer* batch_shape_renderer = nullptr;
+
+unsigned int blur_texture;
+
+// std::unique_ptr<Mesh> au_faaaalcon;
+// std::shared_ptr<MeshObject> au_falcon_obj;
 
 GLFWwindow* win = nullptr;
+
+std::map<std::string, Shader*> loadedShaders;
+
+
+
+lighting_config preset_no_post_processing = lighting_config{
+    {1.0f, 1.0f, 1.0f},
+    {0, 0, 0},
+    1.0f,
+    1.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    1.0f,
+    1.0f,
+    {0.6f, 0.7f, 1.0f},
+    0.0f,
+    150.0f,
+    150.0f,
+    0,
+    1,
+    0
+};
+
+lighting_config preset_default = preset_no_post_processing;
+
+lighting_config preset_beautiful = {
+    {1.0f, 1.0f, 1.0f},
+    {70, -35, -65},
+
+    1.0f,
+
+    0.1f,
+    2.3f,
+    0.0f,
+    0.0f,
+    1.35f,
+    0.95f,
+
+    {0.6f, 0.7f, 1.0f},
+    0.03f,
+    50.0f,
+    150.0f,
+
+    5,
+    0,
+    1.0f
+};
+
+lighting_config preset_realistic = {
+    {1.0f, 1.0f, 1.0f},
+    {35, -35, -75},
+
+    1.0f,
+
+    0.115, // ambient lighting strength
+    1.4f,
+    0.0f,
+    0.0f,
+    0.75f,
+    1.0f,
+
+    {0.6f, 0.7f, 1.0f},
+    0.03f,
+    50.0f,
+    150.0f,
+
+    3,
+    0,
+    1.115f
+};
+
+void on_shader_load(Shader* shader, const std::string display_name) {
+    loadedShaders[display_name] = shader;
+}
 
 glm::vec3 determine_rand_spawn_location() {
     const float rnd_max = (float)RAND_MAX;
@@ -118,7 +247,7 @@ glm::vec3 determine_rand_spawn_location() {
 float find_world_land_y_at(glm::vec2 pos) {
     float y = 50;
 
-    while (world.getBlockAt(pos.x, y, pos.y).isAir()) {
+    while (world->getBlockAt(pos.x, y, pos.y).isAir()) {
         y--;
     }
 
@@ -129,17 +258,19 @@ void use_initial_values() {
     normal_fov = 120;
     zoomed_fov = 40;
 
-    camera_sensitivity = 40.0f;
+    camera_sensitivity = 20.0f;
     // mouse_captured = false;
 
     render_distance_radius = 1;
 
     third_person = false;
 
-    mouse_captured = false;
+
+
+    mouse_captured = true;
 
     render_world = true;
-    render_block_highlight = true;
+    render_block_highlight = false;
 
     w = 600;
     h = 600;
@@ -147,21 +278,44 @@ void use_initial_values() {
     frames_per_second = 0;
 
     camera = Camera(16/9);
+    camera.lighting_shader_config = preset_default;
 
-    world = World(0);
     player = Player();
 
-    player.position = determine_rand_spawn_location();
+    world->gravity = -15;
+
+    walk_speed = 4.0f;
+    sprint_speed = walk_speed * 2.5f;
+    player.jumpStrength = 9.0f;
+
+
+
+    // player.position = determine_rand_spawn_location();
     player.position.y = find_world_land_y_at(
         glm::vec2(player.position.x, player.position.z)) + 1;
 
     camera.fov = normal_fov;
 }
 
+void reload_shaders_only() {
+    for (auto& [name, shader] : loadedShaders) {
+        if (shader && shader->isValid()) {
+            shader->reload();
+            printf("[ShaderReload] %s reloaded.\n", name.c_str());
+        } else {
+            fprintf(stderr, "⚠️  Shader '%s' invalid during reload.\n", name.c_str());
+        }
+    }
+}
+
+
 void load_blur_shaders() {
     std::ifstream hor, ver, vert;
 
-    std::filesystem::path shaders_dir = std::filesystem::current_path() / "shaders";
+    std::filesystem::path shaders_dir =
+        std::filesystem::current_path() /
+        build_config::game_files_directory /
+        "shaders";
 
     hor.open(shaders_dir / "gaussian_blur_horizontal.frag");
     ver.open(shaders_dir / "gaussian_blur_vertical.frag");
@@ -176,140 +330,226 @@ void load_blur_shaders() {
     std::string verFragSource = vertical.str();
     std::string vertSource = vertex.str();
 
-    horizontal_blur_shader = std::make_shared<Shader>(
+    // horizontal_blur_shader = engineArena.allocate()
+
+    horizontal_blur_shader = arena_allocate<Shader>(
+        engineArena,
         std::vector<std::pair<const char*, GLenum>>{
             {vertSource.c_str(), GL_VERTEX_SHADER},
             {horFragSource.c_str(), GL_FRAGMENT_SHADER},
         },
         "gaussian_blur_horizontal"
     );
+    on_shader_load(horizontal_blur_shader, "H Blur Shader");
 
-    vertical_blur_shader = std::make_shared<Shader>(
+    vertical_blur_shader = arena_allocate<Shader>(
+        engineArena,
         std::vector<std::pair<const char*, GLenum>>{
             {vertSource.c_str(), GL_VERTEX_SHADER},
             {verFragSource.c_str(), GL_FRAGMENT_SHADER},
         },
         "gaussian_blur_vertical"
     );
+    on_shader_load(vertical_blur_shader, "V Blur Shader");
 
-    blur_object = std::make_shared<GaussianBlurObject>(
+    blur_object = arena_allocate<GaussianBlurObject>(
+        engineArena,
         vertical_blur_shader,
         horizontal_blur_shader, w,h);
 
-    sceneFBO = std::make_shared<SceneFramebuffer>(
+    sceneFBO = arena_allocate<SceneFramebuffer>(
+        engineArena,
         w,h);
-
-
-    depth_shader = Shader::loadFromName("depth");
-
-
-    player_shader = Shader::loadFromName("player");
-    player_object = std::make_shared<PlayerObject>(
-            player_shader, texture_atlas);
 }
+
+
 
 void initialise() {
-    // auto meshOpt = Mesh::loadOBJ("/home/code/Documents/models/RTX 3090.obj");
-    // if (!meshOpt) {
-    //     std::cerr << "Failed to load OBJ\n";
-    //     return;
-    // }
+    /* AUTO_DEALLOCATE will delete the pointer IF IT EXISTS, to prevent memory leaks */
 
-    // auto mesh = std::make_unique<Mesh>(std::move(*meshOpt));
-
-    // automatically loads mesh_object.vert & mesh_object.frag as a unique_ptr
-    shader = Shader::loadFromName("mesh_object");
-    block_highlight_shader = Shader::loadFromName("block_highlight");
-
-    shadow_depth_map = std::make_shared<ShadowMap>(
-        depth_shader, 2048 * 6);
-
-    texture_atlas = std::make_shared<Texture>();
-    texture_atlas->load("./textures/atlas3.png");
-
-
-
-
-    load_blur_shaders();
-
-    {
-        crosshair_shader = Shader::loadFromName("crosshair");
-
-        crosshair_texture = std::make_shared<Texture>();
-        crosshair_texture->load("./textures/crosshair.png");
-
-        crosshair_object = std::make_shared<CrosshairObject>(
-            crosshair_shader, crosshair_texture);
-    }
-
-    // mesh_object = std::make_unique<MeshObject>(
-    //     std::move(mesh), shader);
-
-
-
-    block_highlight_object = std::make_unique<BlockHighlightObject>(
-        block_highlight_shader);
-
-    world_renderer = std::make_unique<WorldRenderer>(
-        shader, texture_atlas, world);
-
+    AUTO_DEALLOCATE(World, world);
+    world = arena_allocate<World>(engineArena, engineArena, 0);
 
     use_initial_values();
+
+    AUTO_DEALLOCATE(Shader, shader);
+    shader = Shader::loadFromName("mesh_object", engineArena);
+    on_shader_load(shader, "Primary Mesh Shader");
+
+    AUTO_DEALLOCATE(Shader, block_highlight_shader);
+    block_highlight_shader = Shader::loadFromName("block_highlight", engineArena);
+    on_shader_load(block_highlight_shader, "Block Highlight Shader");
+
+    AUTO_DEALLOCATE(Shader, depth_shader);
+    depth_shader = Shader::loadFromName("depth", engineArena);
+    on_shader_load(depth_shader, "Depth Shader");
+
+    AUTO_DEALLOCATE(Shader, player_shader);
+    player_shader = Shader::loadFromName("player", engineArena);
+    on_shader_load(player_shader, "Player Shader");
+
+    AUTO_DEALLOCATE(Shader, batch_renderer_shader);
+    batch_renderer_shader = Shader::loadFromName(
+        "batch_draw", engineArena);
+    on_shader_load(batch_renderer_shader, "2D Graphics Shader");
+
+
+
+    AUTO_DEALLOCATE(Texture, texture_atlas);
+    texture_atlas = arena_allocate<Texture>(engineArena);
+    std::filesystem::path ta = build_config::textures_dir /
+        std::filesystem::path("atlas3.png");
+    texture_atlas->load(ta.c_str());
+
+    AUTO_DEALLOCATE(Texture, crosshair_texture);
+    crosshair_texture = arena_allocate<Texture>(engineArena);
+    std::filesystem::path cr = build_config::textures_dir /
+        std::filesystem::path("crosshair.png");
+    crosshair_texture->load(cr.c_str());
+
+    // 3. Now that all shaders/textures exist → load blur shaders
+    load_blur_shaders();
+
+    AUTO_DEALLOCATE(BatchShapeRenderer, batch_shape_renderer);
+    batch_shape_renderer = arena_allocate<BatchShapeRenderer>(
+        engineArena, batch_renderer_shader);
+
+    AUTO_DEALLOCATE(PlayerObject, player_object);
+    player_object = arena_allocate<PlayerObject>(
+        engineArena, engineArena, player_shader, texture_atlas);
+
+    AUTO_DEALLOCATE(BlockHighlightObject, block_highlight_object);
+    block_highlight_object = arena_allocate<BlockHighlightObject>(
+        engineArena, block_highlight_shader);
+
+
+    AUTO_DEALLOCATE(ShadowMap, shadow_depth_map);
+    shadow_depth_map = arena_allocate<ShadowMap>(
+        engineArena, depth_shader, 2048 * 6);
+
+    AUTO_DEALLOCATE(WorldRenderer, world_renderer);
+    world_renderer = arena_allocate<WorldRenderer>(
+        engineArena, shader, texture_atlas, world, engineArena);
+
+
+}
+
+void reload_game() {
+    initialise();
+
+    world->chunkColumns.clear();
+    world_renderer->visibleChunks.clear();
+
+    printf("Reloaded game!\n");
 }
 
 
 
-
-
-void setup_imgui_theme()
+void setup_imgui_theme(bool dark = true)
 {
     ImGuiStyle& style = ImGui::GetStyle();
     ImVec4* colors = style.Colors;
 
-    // Base colors
-    colors[ImGuiCol_WindowBg]         = ImVec4(0.12f, 0.13f, 0.15f, 0.85f);
-    colors[ImGuiCol_Header]           = ImVec4(0.20f, 0.22f, 0.27f, 1.0f);
-    colors[ImGuiCol_HeaderHovered]    = ImVec4(0.26f, 0.29f, 0.35f, 1.0f);
-    colors[ImGuiCol_HeaderActive]     = ImVec4(0.30f, 0.34f, 0.41f, 1.0f);
+    // === WINDOW / PANELS ===
+    colors[ImGuiCol_WindowBg]         = ImVec4(0.0f, 0.0f, 0.0f, 0.75f);   // translucent dark
+    colors[ImGuiCol_ChildBg]          = ImVec4(0.05f, 0.05f, 0.05f, 0.0f);
+    colors[ImGuiCol_PopupBg]          = ImVec4(0.08f, 0.08f, 0.08f, 0.9f);
+    colors[ImGuiCol_Border]           = ImVec4(0.15f, 0.15f, 0.15f, 0.4f);
 
-    colors[ImGuiCol_Button]           = ImVec4(0.17f, 0.19f, 0.23f, 1.0f);
-    colors[ImGuiCol_ButtonHovered]    = ImVec4(0.26f, 0.29f, 0.35f, 1.0f);
-    colors[ImGuiCol_ButtonActive]     = ImVec4(0.30f, 0.34f, 0.41f, 1.0f);
+    // === TITLE BAR (solid black) ===
+    colors[ImGuiCol_TitleBg]          = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);   // solid black
+    colors[ImGuiCol_TitleBgActive]    = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);   // solid black (active)
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.0f, 0.0f, 0.0f, 0.9f);   // slightly translucent
 
-    colors[ImGuiCol_FrameBg]          = ImVec4(0.16f, 0.17f, 0.20f, 1.0f);
-    colors[ImGuiCol_FrameBgHovered]   = ImVec4(0.20f, 0.22f, 0.27f, 1.0f);
-    colors[ImGuiCol_FrameBgActive]    = ImVec4(0.25f, 0.27f, 0.33f, 1.0f);
+    // === HEADERS / COLLAPSIBLES ===
+    colors[ImGuiCol_Header]           = ImVec4(0.18f, 0.18f, 0.18f, 0.8f);
+    colors[ImGuiCol_HeaderHovered]    = ImVec4(0.25f, 0.25f, 0.25f, 0.9f);
+    colors[ImGuiCol_HeaderActive]     = ImVec4(0.30f, 0.30f, 0.30f, 1.0f);
 
-    colors[ImGuiCol_TitleBg]          = ImVec4(0.09f, 0.09f, 0.10f, 1.0f);
-    colors[ImGuiCol_TitleBgActive]    = ImVec4(0.16f, 0.18f, 0.21f, 1.0f);
+    // === BUTTONS ===
+    colors[ImGuiCol_Button]           = ImVec4(0.16f, 0.18f, 0.20f, 0.8f);
+    colors[ImGuiCol_ButtonHovered]    = ImVec4(0.25f, 0.27f, 0.30f, 1.0f);
+    colors[ImGuiCol_ButtonActive]     = ImVec4(0.30f, 0.34f, 0.40f, 1.0f);
 
-    colors[ImGuiCol_CheckMark]        = ImVec4(0.20f, 0.70f, 0.40f, 1.0f); // green accent
-    colors[ImGuiCol_SliderGrab]       = ImVec4(0.20f, 0.70f, 0.40f, 1.0f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.18f, 0.85f, 0.48f, 1.0f);
+    // === FRAMES / INPUTS ===
+    colors[ImGuiCol_FrameBg]          = ImVec4(0.0f,  0.0f,  0.0f,  0.3f);
+    colors[ImGuiCol_FrameBgHovered]   = ImVec4(0.20f, 0.22f, 0.25f, 1.0f);
+    colors[ImGuiCol_FrameBgActive]    = ImVec4(0.3f, 0.3f, 0.30f, 1.0f);
 
-    colors[ImGuiCol_Separator]        = ImVec4(0.20f, 0.22f, 0.27f, 1.0f);
-    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.25f, 0.70f, 0.45f, 1.0f);
-    colors[ImGuiCol_SeparatorActive]  = ImVec4(0.20f, 0.85f, 0.55f, 1.0f);
+    // === ACCENTS ===
+    colors[ImGuiCol_CheckMark]        = ImVec4(0.20f, 0.75f, 0.45f, 1.0f);
+    colors[ImGuiCol_SliderGrab]       = ImVec4(0.20f, 0.75f, 0.45f, 1.0f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.30f, 0.90f, 0.55f, 1.0f);
 
-    // Rounding
-    style.WindowRounding    = 6.0f;
-    style.FrameRounding     = 4.0f;
-    style.PopupRounding     = 6.0f;
-    style.ScrollbarRounding = 8.0f;
-    style.GrabRounding      = 4.0f;
+    // === SEPARATORS (black + transparent) ===
+    colors[ImGuiCol_Separator]        = ImVec4(0.0f, 0.0f, 0.0f, 0.2f);
+    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.0f, 0.0f, 0.0f, 0.6f);
+    colors[ImGuiCol_SeparatorActive]  = ImVec4(0.0f, 0.0f, 0.0f, 0.8f);
 
-    // Padding & spacing
+    // === TEXT ===
+    colors[ImGuiCol_Text]             = ImVec4(0.95f, 0.95f, 0.95f, 1.0f);
+    colors[ImGuiCol_TextDisabled]     = ImVec4(0.55f, 0.55f, 0.55f, 1.0f);
+
+    // === SCROLLBAR ===
+    colors[ImGuiCol_ScrollbarBg]      = ImVec4(0.05f, 0.05f, 0.05f, 0.3f);
+    colors[ImGuiCol_ScrollbarGrab]    = ImVec4(0.25f, 0.25f, 0.25f, 0.8f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.35f, 0.35f, 0.35f, 0.9f);
+    colors[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.45f, 0.45f, 0.45f, 1.0f);
+
+    // === SHAPES ===
+    style.WindowRounding    = 0.0f;
+    style.FrameRounding     = 0.0f;
+    style.PopupRounding     = 0.0f;
+    style.GrabRounding      = 0.0f;
+    style.ScrollbarRounding = 0.0f;
+
+    // === SPACING ===
     style.WindowPadding     = ImVec2(12, 8);
     style.FramePadding      = ImVec2(6, 4);
     style.ItemSpacing       = ImVec2(8, 6);
     style.ScrollbarSize     = 14.0f;
 
+    // === ANTIALIAS ===
     style.AntiAliasedFill  = true;
     style.AntiAliasedLines = true;
+
+
+    // ImGuiStyle& style = ImGui::GetStyle();
+    //
+    //
+    // if(dark)
+    // {
+    //     ImGui::StyleColorsDark();
+    // }
+    // else
+    // {
+    //     ImGui::StyleColorsLight();
+    // }
+    //
+    // for (int i = 0; i <= ImGuiCol_COUNT; i++)
+    // {
+    //     ImGuiCol_ ei = (ImGuiCol_)i;
+    //     ImVec4& col = style.Colors[i];
+    //     if(  (ImGuiCol_ModalWindowDimBg  != ei ) &&
+    //         ( ImGuiCol_NavWindowingDimBg != ei ) &&
+    //         ( col.w < 1.00f || ( ImGuiCol_FrameBg  == ei )
+    //                         || ( ImGuiCol_WindowBg == ei )
+    //                         || ( ImGuiCol_ChildBg  == ei ) ) )
+    //     {
+    //         col.w = 0.5f * col.w;
+    //     }
+    // }
+    //
+    // style.ChildBorderSize = 1.0f;
+    // style.FrameBorderSize = 0.0f;
+    // style.PopupBorderSize = 1.0f;
+    // style.WindowBorderSize = 0.0f;
+    // style.FrameRounding = 6.0f;
+    // style.Alpha = 1.0f;
 }
 
 void chunk_updater_tick(int radius) {
-    std::vector<std::shared_ptr<Chunk>> updated = world.ensureChunkAndNeighbors(
+    std::vector<Chunk*> updated = world->ensureChunkAndNeighbors(
             camera.position.x,
             camera.position.y,
             camera.position.z, radius);
@@ -352,149 +592,285 @@ void init_imgui(GLFWwindow* win) {
 
 }
 
+void teleport(float x, float y, float z) {
+    player.position = glm::vec3(x, y, z);
+    player.rotation = glm::vec3(0,0,0);
+}
+
+void render_blur_at(unsigned int blurTex, int x, int y, int w, int h) {
+    batch_shape_renderer->Start();
+
+    int texW = camera.screenSize.x;
+    int texH = camera.screenSize.y;
+
+    glm::vec2 pos  = { x, y };
+    glm::vec2 size = { w, h };
+
+    // normalized region
+    glm::vec4 uvRegion = {
+        pos.x / texW,
+        pos.y / texH,
+        size.x / texW,
+        size.y / texH
+    };
+
+    batch_shape_renderer->DrawTexture(
+        blurTex,
+        pos, size,
+        {1, 1, 1, 1},
+        uvRegion,
+        {texW, texH}
+    );
+
+    batch_shape_renderer->End(camera);
+}
+
+void render_2d(unsigned int blurTex) {
+    batch_shape_renderer->Start();
+
+    int crosshair_size = std::min(
+        crosshair_texture->width,
+        crosshair_texture->height);
+
+    batch_shape_renderer->DrawTexture(
+        crosshair_texture,
+        { camera.screenSize.x / 2 - crosshair_size / 2,
+          camera.screenSize.y / 2 + crosshair_size / 2 },
+        { crosshair_size, crosshair_size }, {1,1,1,1});
+
+    batch_shape_renderer->End(camera);
+}
+
+void render_imgui_window_blur() {
+    ImVec2 pos  = ImGui::GetWindowPos();
+    ImVec2 size = ImGui::GetWindowSize();
+
+    if (camera.lighting_shader_config.bypassPostProcessing)
+        return;
+
+    render_blur_at(
+        blur_texture,
+        pos.x, pos.y,
+        size.x, size.y
+    );
+}
+
+void DrawArenaMemoryStats(const char* label, const arena::Allocator<std::byte>& allocator)
+{
+    auto format_size = [](double bytes) -> std::string {
+        const char* units[] = {"B", "KB", "MB", "GB", "TB"};
+        int unit_index = 0;
+        while (bytes >= 1024.0 && unit_index < 4) {
+            bytes /= 1024.0;
+            ++unit_index;
+        }
+        char buffer[32];
+        std::snprintf(buffer, sizeof(buffer), "%.2f %s", bytes, units[unit_index]);
+        return buffer;
+    };
+
+    double used = allocator.used_bytes();
+    double total = allocator.total_bytes();
+
+    std::string used_str  = format_size(used);
+    std::string total_str = format_size(total);
+
+    ImGui::Text("%s: %s / %s", label, used_str.c_str(), total_str.c_str());
+}
+
+
+void render_engine_status_window() {
+
+
+
+    if (ImGui::Begin("Engine Status")) {
+        render_imgui_window_blur();
+        auto show_ptr = [](const char* label, void* ptr) {
+            long arena_ptr_int = reinterpret_cast<long>(&engineArena);
+            long ptr_int = reinterpret_cast<long>(ptr);
+
+            if (ptr)
+                ImGui::Text("%-25s: %p", label, ptr_int - arena_ptr_int);
+            else
+                ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "%-22s: (null)", label);
+        };
+
+
+        // --- Game ---
+        ImGui::SeparatorText("Game");
+        ImGui::Text("Frame Time: %.0ffps (%.1fms)",
+            ImGui::GetIO().Framerate,
+             deltaTime * 1000.0f);
+
+
+
+
+        // --- Shaders ---
+        ImGui::SeparatorText("Shaders");
+        // show_ptr("Main Shader", shader);
+        // show_ptr("Block Highlight Shader", block_highlight_shader);
+        // show_ptr("Crosshair Shader", crosshair_shader);
+        // show_ptr("Horizontal Blur Shader", horizontal_blur_shader);
+        // show_ptr("Vertical Blur Shader", vertical_blur_shader);
+        // show_ptr("Depth Shader", depth_shader);
+        // show_ptr("Player Shader", player_shader);
+        for (auto [name, shader] : loadedShaders) {
+            show_ptr(name.c_str(), shader);
+        }
+        ImGui::Spacing();
+
+        // --- Objects ---
+        ImGui::SeparatorText("Objects");
+        show_ptr("World Renderer", world_renderer);
+        show_ptr("Block Highlight Object", block_highlight_object);
+        show_ptr("Blur Object", blur_object);
+        show_ptr("Player Object", player_object);
+        ImGui::Spacing();
+
+        // --- Textures / FBOs ---
+        ImGui::SeparatorText("Textures / Framebuffers");
+        show_ptr("Texture Atlas", texture_atlas);
+        show_ptr("Crosshair Texture", crosshair_texture);
+        show_ptr("Scene Framebuffer", sceneFBO);
+        show_ptr("Shadow Depth Map", shadow_depth_map);
+        ImGui::Spacing();
+
+
+        ImGui::SeparatorText("Player");
+        ImGui::Text("Position: (%.2f, %.2f, %.2f)",
+            player.position.x, player.position.y, player.position.z);
+        ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
+            player_wasd_velocity.value.x, player_wasd_velocity.value.y, player_wasd_velocity.value.z);
+        ImGui::Text("On Ground: %s", player.is_on_ground ? "true" : "false");
+        ImGui::Text("Sprinting: %s", player.is_sprinting ? "true" : "false");
+        ImGui::Text("Jump Velocity Y: %.3f", player.jump_velocity.y);
+        ImGui::Text("Gravity Velocity Y: %.3f", player.gravity_velocity.y);
+        ImGui::Spacing();
+
+
+
+
+        ImGui::SeparatorText("World");
+        ImGui::Text("Render Distance: %d chunks", render_distance_radius);
+        ImGui::Text("Visible Chunks: %zu", world_renderer ? world_renderer->visibleChunks.size() : 0);
+        ImGui::Text("Chunk Columns: %zu", world->chunkColumns.size());
+        ImGui::Spacing();
+
+
+
+
+        ImGui::SeparatorText("System");
+        ImGui::Text("Resolution: %dx%d", w, h);
+        ImGui::Text("Mouse Captured: %s", mouse_captured ? "true" : "false");
+        ImGui::Text("Free Cam: %s", free_cam ? "true" : "false");
+        DrawArenaMemoryStats("Arena Memory", engineArena);
+        ImGui::Text("GPU: %s", hwinfo.GraphicsHardware);
+        ImGui::Text("GPU Vendor: %s", hwinfo.GraphicsVendor);
+
+
+
+
+    }
+    ImGui::End();
+}
+
 void render_imgui() {
-    ImGui::SetNextWindowSize(ImVec2(500,350), ImGuiCond_Once);
+    render_engine_status_window();
+
+    ImGui::SetNextWindowSize(ImVec2(320,700), ImGuiCond_Once);
     ImGui::Begin("Debug Menu");
+    render_imgui_window_blur();
 
-    if (mouse_captured) {
-        ImGui::Text("[ Mouse Captured ]");
+    // Helper lambda for float sliders
+    auto sliderFloat = [&](const char* label, float* value, float min, float max) {
+        ImGui::TextUnformatted(label);
+        ImGui::PushID(label);
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        ImGui::SliderFloat("##slider", value, min, max);
+        ImGui::PopID();
         ImGui::Spacing();
+    };
+
+    // Helper lambda for int sliders
+    auto sliderInt = [&](const char* label, int* value, int min, int max) {
+        ImGui::TextUnformatted(label);
+        ImGui::PushID(label);
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        ImGui::SliderInt("##slider", value, min, max);
+        ImGui::PopID();
         ImGui::Spacing();
-        ImGui::Spacing();
-    }
+    };
 
     {
-        ImGui::Text("XYZ: %.2f, %.2f, %.2f",
-            player.position.x,
-            player.position.y,
-            player.position.z);
-        ImGui::Text("Player Rotation: %.2f, %.2f, %.2f",
-            player.rotation.x,
-            player.rotation.y,
-            player.rotation.z);
-        ImGui::Text("Sun Rotation: %.2f, %.2f, %.2f",
-            camera.lighting_shader_config.sunDir.x,
-            camera.lighting_shader_config.sunDir.y,
-            camera.lighting_shader_config.sunDir.z);
-    }
+        ImGui::SeparatorText("** Variables **");
 
-    static bool show_camera = false;
-    if (!show_camera) {
-        if (ImGui::Button("Show camera relative XYZ")) {
-            show_camera = true;
-        }
-    }
-    else {
-        ImGui::Text("Camera Relative XYZ: %.2f, %.2f, %.2f",
-            camera.position.x - player.position.x,
-            camera.position.y - player.position.y,
-            camera.position.z - player.position.z);
-    }
+        ImGui::Spacing();
+        sliderFloat("FOV", &normal_fov, zoomed_fov, 160);
+        sliderFloat("Camera Sensitivity", &camera_sensitivity, 5, 80);
+        sliderFloat("Walk Speed", &walk_speed, 1, 30);
+        sliderFloat("Sprint Speed", &sprint_speed, 1, 60);
+        sliderFloat("Jump Height", &player.jumpStrength, 1, 80);
+        sliderInt("Render Distance (Radius)", &render_distance_radius, 0, 20);
 
-    {
-        int chunks = 0;
-        for (auto& chunk : world.chunkColumns)
-            chunks += 1;
-
-        ImGui::Text("Chunks Loaded: %i", chunks);
+        ImGui::Spacing();
+        ImGui::Checkbox("Block Highlight", &render_block_highlight);
         ImGui::SameLine();
-        ImGui::Text("FPS: %.2f", frames_per_second);
-        ImGui::Spacing();
-    }
+        ImGui::Checkbox("Free Cam", &free_cam);
 
-    {
-        ImGui::Text("Window Size %i,%i", w, h);
-        ImGui::Spacing();
+        ImGui::Checkbox("Capture Mouse (Q)", &mouse_captured);
+        ImGui::SameLine();
+        ImGui::Checkbox("Chunk Renderer", &render_world);
+
     }
 
     ImGui::Spacing();
     {
-        ImGui::Text("** Controls **");
-        ImGui::SameLine();
-        static bool enabled = false;
-        ImGui::Checkbox("Show Controls", &enabled);
+        ImGui::SeparatorText("** Lighting Shader **");
+        ImGui::Spacing(); ImGui::Spacing();
 
-        if (enabled) {
-            // ImGui::BeginChild("ControlsBox");
 
-            ImGui::Spacing();
-            ImGui::Text("Toggle Mouse Capture: Q");
-            ImGui::Text("Movement: W,A,S,D");
-            ImGui::Text("Jump (Hold): Space");
-            ImGui::Text("Zoom: C");
-            // ImGui::EndChild();
-        }
+
+        // Lighting shader config sliders
+        sliderFloat("Specular Strength",   &camera.lighting_shader_config.specularStrength, 0, 3);
+        sliderFloat("Ambient Strength",    &camera.lighting_shader_config.ambientStrength, 0, 3);
+        sliderFloat("Diffuse Strength",    &camera.lighting_shader_config.diffuseStrength, 0, 3);
+        ImGui::Spacing();
+
+        sliderFloat("Shininess",           &camera.lighting_shader_config.shininess, 0, 250);
+        sliderFloat("Contrast",            &camera.lighting_shader_config.contrast, 0, 3);
+        sliderFloat("Vibrancy",            &camera.lighting_shader_config.vibrancy, 0, 3);
+        sliderFloat("Ambient Occlusion",   &camera.lighting_shader_config.ambientOcclusion, 0, 3);
+        sliderFloat("Day / Night Value",   &camera.lighting_shader_config.sky_night_day_light_modifier, 0, 1);
+        ImGui::Spacing();
+
+        sliderFloat("Fog Start",           &camera.lighting_shader_config.fogStart, 0, 400);
+        sliderFloat("Fog End",             &camera.lighting_shader_config.fogEnd, 0, 400);
+
+        sliderInt("Shadow Quality (PCF Radius)", &camera.lighting_shader_config.pcfRadius, 0, 8);
     }
 
     ImGui::Spacing();
     {
+        ImGui::SeparatorText("** Lighting Shader PRESETS **");
 
-        // ImGui::BeginChild("Variables");
-        ImGui::Text("** Variables **");
-        ImGui::SameLine();
-        static bool enabled = false;
-        ImGui::Checkbox("Enable Variables Config", &enabled);
-
-        if (enabled) {
-            ImGui::Spacing();
-            ImGui::SliderFloat("FOV", &normal_fov, zoomed_fov, 160);
-            ImGui::SliderFloat("Camera Sensitivity", &camera_sensitivity, 5, 80);
-            ImGui::SliderFloat("Walk Speed", &walk_speed, 1, 30);
-            ImGui::SliderFloat("Sprint Speed", &sprint_speed, 1, 60);
-            ImGui::SliderFloat("Jump Height", &jump_height, 1, 80);
-            ImGui::SliderInt("Render Distance (Radius)", &render_distance_radius, 0, 20);
-
-            ImGui::Spacing();
-            ImGui::Checkbox("Capture Mouse? (Q)", &mouse_captured);
-            ImGui::SameLine();
-            ImGui::Checkbox("3rd-person? (NOT IMPLEMENTED)", &third_person);
-
-            ImGui::Checkbox("Chunk Renderer Enabled?", &render_world);
-            ImGui::SameLine();
-            ImGui::Checkbox("Block Highlight", &render_block_highlight);
-
-            ImGui::Spacing();
-            ImGui::Checkbox("Free Cam", &free_cam);
-
-            // ImGui::EndChild();
+        ImGui::Spacing();
+        ImGui::Spacing();
+        if (ImGui::Button("Default")) {
+            camera.lighting_shader_config = preset_default;
         }
-    }
-
-    ImGui::Spacing();
-    {
-        ImGui::Text("** Lighting Shader **");
         ImGui::SameLine();
-        static bool enabled = false;
-        ImGui::Checkbox("Enable Shader Config", &enabled);
-
-        if (enabled) {
-            ImGui::Spacing();
-            ImGui::Spacing();
-
-            ImGui::SliderFloat("specularStrength", &camera.lighting_shader_config.specularStrength, 0, 2);
-            ImGui::SliderFloat("ambientStrength", &camera.lighting_shader_config.ambientStrength, 0, 2);
-            ImGui::SliderFloat("diffuseStrength", &camera.lighting_shader_config.diffuseStrength, 0, 2);
-            ImGui::Spacing();
-            ImGui::Spacing();
-
-            ImGui::SliderFloat("shininess", &camera.lighting_shader_config.shininess, 0, 200);
-            ImGui::SliderFloat("contrast", &camera.lighting_shader_config.contrast, 0, 2);
-            ImGui::SliderFloat("vibrancy", &camera.lighting_shader_config.vibrancy, 0, 2);
+        if (ImGui::Button("Realistic")) {
+            camera.lighting_shader_config = preset_realistic;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Stunning")) {
+            camera.lighting_shader_config = preset_beautiful;
+        }
 
 
-            ImGui::SliderFloat("sky_night_day_light_modifier", &camera.lighting_shader_config.sky_night_day_light_modifier, 0, 1);
-            ImGui::Spacing();
-            ImGui::Spacing();
 
-            // ImGui::ColorPicker3("fogColor", (float*)&camera.lighting_shader_config.fogColor);
-
-            // ImGui::SliderFloat("lighting_config::fogColor", &camera.lighting_shader_config.fogColor, 0, 200);
-            ImGui::SliderFloat("fogStart", &camera.lighting_shader_config.fogStart, 0, 150);
-            ImGui::SliderFloat("fogEnd", &camera.lighting_shader_config.fogEnd, 0, 150);
-            ImGui::SliderFloat("fogDensity", &camera.lighting_shader_config.fogDensity, 0, 0.5f);
-
-
-            ImGui::SliderInt("shadowQuality (pcfRadius)", &camera.lighting_shader_config.pcfRadius, 0, 8);
+        if (ImGui::Button("No Post Processing")) {
+            camera.lighting_shader_config = preset_no_post_processing;
         }
 
     }
@@ -503,56 +879,51 @@ void render_imgui() {
     {
 
         // ImGui::BeginChild("Idk");
-        ImGui::Text("** Misc **");
+        ImGui::SeparatorText("** Misc **");
+
+        ImGui::Spacing();
+
+        static int x = 0, y = 0, z = 0;
+        static bool correct_y = true;
+        ImGui::Text("Teleport");
+        ImGui::Checkbox("Correct Y Level Automatically", &correct_y);
+        ImGui::PushItemWidth(80);
+        ImGui::InputInt("X", &x);
         ImGui::SameLine();
-        static bool enabled = false;
-        ImGui::Checkbox("Show Misc Config", &enabled);
+        if (correct_y) ImGui::BeginDisabled();
+        ImGui::InputInt("Y", &y);
+        if (correct_y) ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::InputInt("Z", &z);
+        ImGui::PopItemWidth();
+        // ImGui::SameLine();
+        if (correct_y) y = find_world_land_y_at(glm::vec2(x,z)) + 1;
+        if (ImGui::Button("Teleport")) {
+            teleport(x, y, z);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Copy Current")) {
+            x = player.position.x;
+            y = player.position.y;
+            z = player.position.z;
+        }
+        ImGui::Spacing();
 
-        if (enabled) {
-            ImGui::Spacing();
-
-            static int x = 0, y = 0, z = 0;
-            static bool correct_y = true;
-            ImGui::Text("Teleport");
-            ImGui::Checkbox("Correct Y Level Automatically", &correct_y);
-            ImGui::PushItemWidth(80);
-            ImGui::InputInt("X", &x);
-            ImGui::SameLine();
-            if (correct_y) ImGui::BeginDisabled();
-            ImGui::InputInt("Y", &y);
-            if (correct_y) ImGui::EndDisabled();
-            ImGui::SameLine();
-            ImGui::InputInt("Z", &z);
-            ImGui::PopItemWidth();
-            // ImGui::SameLine();
-            if (correct_y) y = find_world_land_y_at(glm::vec2(x,z)) + 1;
-            if (ImGui::Button("Teleport")) {
-                player.position = glm::vec3(x, y, z);
-                player.rotation = glm::vec3(0,0,0);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Copy Current")) {
-                x = player.position.x;
-                y = player.position.y;
-                z = player.position.z;
-            }
-            ImGui::Spacing();
-
-            // ImGui::Text("** Chunks **");
-            ImGui::Text("Shaders, chunks & textures.");
-            if (ImGui::Button("Clear Chunks")) {
-                world.chunkColumns.clear();
-                world_renderer->visibleChunks.clear();
-            }
-            ImGui::SameLine();
+        // ImGui::Text("** Chunks **");
+        ImGui::Text("Shaders, chunks & textures.");
+        if (ImGui::Button("Clear Chunks")) {
+            world->chunkColumns.clear();
+            world_renderer->visibleChunks.clear();
+        }
+        ImGui::SameLine();
 
 
-            if (ImGui::Button("Reload entire game")) {
-                initialise();
+        if (ImGui::Button("Reload entire game")) {
+            reload_game();
+        }
 
-                world.chunkColumns.clear();
-                world_renderer->visibleChunks.clear();
-            }
+        if (ImGui::Button("Reload shaders only")) {
+            reload_shaders_only();
         }
     }
 
@@ -561,13 +932,24 @@ void render_imgui() {
 }
 
 
-void apply_mouse_delta_to_rotation(glm::vec2 delta, glm::vec3& rotation, float sensitivity, float deltaTime, bool clamp = true) {
-    rotation.y -= delta.y * sensitivity * deltaTime;
+void apply_mouse_delta_to_rotation(glm::vec2 delta, glm::vec3& rotation, float sensitivity, float deltaTime, bool clamp = true, bool use_z = false) {
+    float y_delta = delta.y * sensitivity * deltaTime;
+
+    if (use_z) rotation.z += y_delta;
+    else rotation.y -= y_delta;
+
     rotation.x += delta.x * sensitivity * deltaTime;
 
     if (clamp) {
-        if (rotation.y > 89.0f) rotation.y = 89.0f;
-        if (rotation.y < -89.0f) rotation.y = -89.0f;
+        if (use_z) {
+            if (rotation.z > 89.0f) rotation.z = 89.0f;
+            if (rotation.z < -89.0f) rotation.z = -89.0f;
+        }
+        else {
+            if (rotation.y > 89.0f) rotation.y = 89.0f;
+            if (rotation.y < -89.0f) rotation.y = -89.0f;
+        }
+
         if (rotation.x > 360.0f) rotation.x = 0;
         if (rotation.x < 0) rotation.x = 360.0f;
     }
@@ -584,34 +966,43 @@ void set_block(glm::ivec3 pos, BlockID new_block) {
         pos
     };
 
-    world.setBlockAt(
+    world->setBlockAt(
         x, y, z,
         block
     );
 
-    const int chunk_x = floorDiv(x, CHUNK_SIZE);
-    const int chunk_y = floorDiv(y, CHUNK_SIZE);
-    const int chunk_z = floorDiv(z, CHUNK_SIZE);
+    if (auto chunkPtr = world->getChunkPtrAt(x, y, z)) {
+        // rebuild chunk next frame
+        // printf("0x%x\n", chunkPtr.get());
+        auto begin = world_renderer->chunksToRebuild.begin();
+        auto end = world_renderer->chunksToRebuild.end();
 
-    if (chunk_y >= 0 && chunk_y < WORLD_HEIGHT_CHUNKS) {
-        ChunkCoord coord{chunk_x, chunk_z};
-        auto column_it = world.chunkColumns.find(coord);
-        if (column_it != world.chunkColumns.end()) {
-            const auto &chunkPtr = column_it->second.chunks[chunk_y];
-            if (chunkPtr) {
-                const bool alreadyQueued = std::any_of(
-                    world_renderer->chunksToRebuild.begin(),
-                    world_renderer->chunksToRebuild.end(),
-                    [&](const Chunk* queued) {
-                        return queued == chunkPtr;
-                    });
-
-                if (!alreadyQueued) {
-                    world_renderer->chunksToRebuild.emplace_back(chunkPtr);
-                }
-            }
+        if (std::find(begin, end, chunkPtr) == end) {
+            world_renderer->chunksToRebuild
+                .emplace_back(chunkPtr);
         }
+
     }
+
+    // if (chunk_y >= 0 && chunk_y < WORLD_HEIGHT_CHUNKS) {
+    //     ChunkCoord coord{chunk_x, chunk_z};
+    //     auto column_it = world.chunkColumns.find(coord);
+    //     if (column_it != world.chunkColumns.end()) {
+    //         const auto &chunkPtr = column_it->second.chunks[chunk_y];
+    //         if (chunkPtr) {
+    //             const bool alreadyQueued = std::any_of(
+    //                 world_renderer->chunksToRebuild.begin(),
+    //                 world_renderer->chunksToRebuild.end(),
+    //                 [&](const Chunk* queued) {
+    //                     return queued == chunkPtr;
+    //                 });
+    //
+    //             if (!alreadyQueued) {
+    //                 world_renderer->chunksToRebuild.emplace_back(chunkPtr);
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 void break_block(BlockID block_id = BlockID::Air) {
@@ -629,134 +1020,219 @@ void place_block(BlockID block_id) {
     );
 }
 
+void create_house() {
+    int centerX = floor(player.position.x);
+    int centerZ = floor(player.position.z);
+    int bottomY = floor(player.position.y);
+
+    int width = 30;
+    int length = 30;
+    int height = 8;
+
+    int offsetX = -width / 2;
+    int offsetZ = -length / 2;
+
+    // --- Floor ---
+    for (int x = 0; x < width; x++) {
+        for (int z = 0; z < length; z++) {
+            set_block({centerX + offsetX + x, bottomY - 1, centerZ + offsetZ + z}, BlockID::Stone);
+        }
+    }
+
+    // --- Front wall ---
+    for (int y = 0; y < height - 1; y++) {
+        for (int x = 0; x < width; x++) {
+            set_block({centerX + offsetX + x, bottomY + y, centerZ + offsetZ}, BlockID::Stone);
+        }
+    }
+
+    // --- Back wall ---
+    for (int y = 0; y < height - 1; y++) {
+        for (int x = 0; x < width; x++) {
+            set_block({centerX + offsetX + x, bottomY + y, centerZ + offsetZ + length - 1}, BlockID::Stone);
+        }
+    }
+
+    // --- Left wall ---
+    for (int y = 0; y < height - 1; y++) {
+        for (int z = 0; z < length; z++) {
+            set_block({centerX + offsetX, bottomY + y, centerZ + offsetZ + z}, BlockID::Stone);
+        }
+    }
+
+    // --- Right wall ---
+    for (int y = 0; y < height - 1; y++) {
+        for (int z = 0; z < length; z++) {
+            set_block({centerX + offsetX + width - 1, bottomY + y, centerZ + offsetZ + z}, BlockID::Stone);
+        }
+    }
+
+    // --- Roof ---
+    for (int x = 0; x < width; x++) {
+        for (int z = 0; z < length; z++) {
+            set_block({centerX + offsetX + x, bottomY + height - 1, centerZ + offsetZ + z}, BlockID::Stone);
+        }
+    }
+
+    // --- Doorway (front wall, centered) ---
+    int doorX = centerX + offsetX + width / 2;
+    for (int y = 0; y < 2; y++) {
+        set_block({doorX, bottomY + y, centerZ + offsetZ}, BlockID::Air);
+    }
+}
+
+
 void game_logic() {
     ImGuiIO& io = ImGui::GetIO();
+    player_wasd_velocity.target = glm::vec3(0.0f);
 
-    bool left_click = false,
-         right_click = false;
-
+    // --- INPUT FLAGS ---
+    bool left_click = false, right_click = false;
     if (!io.WantCaptureMouse) {
-        left_click = Input::IsMousePressed(GLFW_MOUSE_BUTTON_1);
-        right_click = Input::IsMousePressed(GLFW_MOUSE_BUTTON_2);
+        left_click = Input::IsMouseHeld(GLFW_MOUSE_BUTTON_1);
+        right_click = Input::IsMouseHeld(GLFW_MOUSE_BUTTON_2);
     }
 
-    wasd_movement_speed.target = walk_speed;
-    if (Input::IsKeyHeld(GLFW_KEY_LEFT_CONTROL)) {
-      wasd_movement_speed.target = sprint_speed;
-    }
-    if (Input::IsKeyHeld(GLFW_KEY_ESCAPE)) {
-      glfwSetWindowShouldClose(win, true);
-    }
-    camera_zoom.target = normal_fov;
-    if (Input::IsKeyHeld(GLFW_KEY_C)) {
-      camera_zoom.target = zoomed_fov;
-    }
+    const bool sprint_key = Input::IsKeyHeld(GLFW_KEY_LEFT_CONTROL);
+    const bool jump_key   = Input::IsKeyHeld(GLFW_KEY_SPACE);
+    const bool down_key   = Input::IsKeyHeld(GLFW_KEY_LEFT_SHIFT);
+
+    // --- TOGGLES ---
     if (Input::IsKeyPressed(GLFW_KEY_Q)) {
-      mouse_captured = !mouse_captured;
-      Input::CaptureMouse(mouse_captured);
+        mouse_captured = !mouse_captured;
+        Input::CaptureMouse(mouse_captured);
+    }
+    if (Input::IsKeyPressed(GLFW_KEY_F))  free_cam = !free_cam;
+    if (Input::IsKeyPressed(GLFW_KEY_H))  render_block_highlight = !render_block_highlight;
+    if (Input::IsKeyPressed(GLFW_KEY_F5)) { reload_game(); return; }
+    if (Input::IsKeyHeld(GLFW_KEY_Y)) teleport(0, 50, 0);
+    if (Input::IsKeyHeld(GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(win, true);
+
+    if (Input::IsKeyPressed(GLFW_KEY_G)) create_house();
+
+    // --- CAMERA FOV ---
+    camera_zoom.target = Input::IsKeyHeld(GLFW_KEY_C) ? zoomed_fov : normal_fov;
+
+    // --- MOVEMENT SPEED ---
+    wasd_movement_speed.target = sprint_key ? sprint_speed : walk_speed;
+
+    // --- RAYCASTING / BLOCK ACTIONS ---
+    {
+        static bool last_raycast_had_value = false;
+        bool raycast_has_value = camera_block_raycast_hit.has_value();
+
+        if (raycast_has_value && !last_raycast_had_value)
+            block_selection_pos.value = block_selection_pos.target; // instant snap
+
+        if (raycast_has_value && !io.WantCaptureMouse) {
+            // use IsMousePressed here instead of IsMouseHeld, this will
+            // prevent a block being placed every frame while the mouse is
+            // held.
+
+            left_click = Input::IsMousePressed(GLFW_MOUSE_BUTTON_1);
+            right_click = Input::IsMousePressed(GLFW_MOUSE_BUTTON_2);
+
+
+
+
+
+            if (left_click) place_block(BlockID::Stone);
+
+            // block breaking disabled...
+            // else if (right_click) break_block(BlockID::Air);
+        }
+
+        last_raycast_had_value = raycast_has_value;
     }
 
-    if (camera_block_raycast_hit.has_value()) {
-        if (left_click) {
-            place_block(BlockID::DiamondOre);
-        }
-        else if (right_click) {
-            break_block(BlockID::Air);
-        }
-    }
-
-
-
+    // --- CAMERA ROTATION ---
     glm::vec2 delta = Input::GetMouseDelta();
-
     if (Input::IsKeyHeld(GLFW_KEY_R)) {
-        // hold R to change sun direction
+        // Adjust sun direction with mouse
         apply_mouse_delta_to_rotation(
             delta, camera.lighting_shader_config.sunDir,
-            camera_sensitivity, deltaTime, false);
-    }
-    else if ((mouse_captured || right_click) && (delta.x != 0 || delta.y != 0)) {
-        // normal camera movement
-        if (free_cam) {
-            apply_mouse_delta_to_rotation(
-                delta, camera.rotation,
-                camera_sensitivity, deltaTime);
-        }
-        else {
-            apply_mouse_delta_to_rotation(
-                delta, player.rotation,
-                camera_sensitivity, deltaTime);
-        }
+            camera_sensitivity, deltaTime, false, true);
+
+    } else if ((mouse_captured || right_click) && (delta.x != 0 || delta.y != 0)) {
+        if (free_cam)
+            apply_mouse_delta_to_rotation(delta, camera.rotation, camera_sensitivity, deltaTime);
+        else
+            apply_mouse_delta_to_rotation(delta, player.rotation, camera_sensitivity, deltaTime);
     }
 
+    // --- MOVEMENT (WASD + JUMP + GRAVITY) ---
     {
-        glm::vec3 velocity = glm::vec3(0, 0, 0);
-        glm::vec3 jump_velocity = glm::vec3(0, 0, 0);
+        glm::vec3 move_dir(0.0f);
+        const bool KEY_W = Input::IsKeyHeld(GLFW_KEY_W);
+        const bool KEY_S = Input::IsKeyHeld(GLFW_KEY_S);
+        const bool KEY_A = Input::IsKeyHeld(GLFW_KEY_A);
+        const bool KEY_D = Input::IsKeyHeld(GLFW_KEY_D);
 
-        const bool KEY_W = Input::IsKeyHeld(GLFW_KEY_W),
-                   KEY_S = Input::IsKeyHeld(GLFW_KEY_S),
-                   KEY_A = Input::IsKeyHeld(GLFW_KEY_A),
-                   KEY_D = Input::IsKeyHeld(GLFW_KEY_D);
+        if (KEY_W) move_dir += camera.getFront();
+        if (KEY_S) move_dir -= camera.getFront();
+        if (KEY_D) move_dir += camera.getRight();
+        if (KEY_A) move_dir -= camera.getRight();
 
+        move_dir.y = 0;
+        if (glm::length(move_dir) > 0.001f)
+            move_dir = glm::normalize(move_dir);
 
-        const bool KEY_SPACE = Input::IsKeyHeld(GLFW_KEY_SPACE),
-                   KEY_SHIFT = Input::IsKeyHeld(GLFW_KEY_LEFT_SHIFT);
-
-        int directions = 0;
-        if (KEY_W || KEY_S) {
-            directions++;
-            if (KEY_W) velocity += camera.getFront();
-            else velocity -= camera.getFront();
-        }
-        if (KEY_D || KEY_A) {
-            directions++;
-            if (KEY_D) velocity += camera.getRight();
-            else velocity -= camera.getRight();
+        // Handle vertical flight (free-cam) or jump (normal)
+        if (free_cam) {
+            if (jump_key) move_dir.y += 1.0f;
+            if (down_key) move_dir.y -= 1.0f;
         }
 
-        velocity.y = 0;
-        if (directions > 0) {
-            velocity = glm::normalize(velocity);
-        }
-
-        if (KEY_SPACE || KEY_SHIFT) { // UP & DOWN
-            directions++;
-            if (KEY_SPACE) jump_velocity.y += jump_height;
-            else velocity.y -= 1;
-        }
-        player_wasd_velocity.target = velocity;
-        player_jump_velocity = jump_velocity;
+        player_wasd_velocity.target += move_dir;
+        player.is_sprinting = glm::length(move_dir) > 0 && sprint_key;
     }
 
+    // --- PLAYER / CAMERA MOVEMENT ---
     {
-        glm::vec3 offset = glm::vec3(0, 0, 0);
-        offset += player_wasd_velocity.value * wasd_movement_speed.value * deltaTime; // space / jump velocity (dont apply sprint multiplier)
-        offset += player_jump_velocity * deltaTime; // Gravity velocity
-        offset += player.gravity_velocity * deltaTime;
+        glm::vec3 offset = player_wasd_velocity.value * wasd_movement_speed.value * deltaTime;
 
-        if (free_cam) {
+        if (!free_cam) {
+            player.jumpTick(world, jump_key, deltaTime);
+            player.gravityTick(world, deltaTime);
+
+            offset += player.gravity_velocity * deltaTime;
+            offset += glm::vec3(0,player.jump_velocity.y,0) * deltaTime;
+
+            // Jumping (grounded)
+
+            if (jump_key && !player.is_on_ground) {
+
+            }
+
+            glm::vec3 desiredPos = player.position + offset;
+            // player.position = desiredPos;
+            player.position = player.tryMoveWithSlide(world, desiredPos, offset, 1.0f);
+
+            glm::vec3 delta = desiredPos - player.position;
+            if (glm::length(delta) > 0.001f)
+                player_wasd_velocity.target -= delta * 50.0f;
+        } else {
+            // Free camera flies smoothly
             camera.position += offset;
         }
-        else {
-            player.position += offset;
-        }
     }
+
+    // --- CHUNK MANAGEMENT ---
     chunk_updater_tick(render_distance_radius);
 
-    if (!free_cam) {
+    // --- SYNC CAMERA ---
+    if (!free_cam)
         player.useCamera(camera, third_person);
-    }
-
-
 }
+
 
 void ease_tick() {
     wasd_movement_speed.tick(deltaTime, 5.0f);
-    player_wasd_velocity.tick(deltaTime, 10.0f);
+    player_wasd_velocity.tick(deltaTime, 5.0f);
     camera_zoom.tick(deltaTime, 20.0f);
     block_selection_pos.tick(deltaTime, 20.0f);
 
-    player.gravityTick(world, deltaTime);
+
 
     camera.fov = camera_zoom.value;
 }
@@ -778,7 +1254,7 @@ int init_glfw() {
 
 
     glfwMakeContextCurrent(win);
-    glfwSwapInterval(1);
+    glfwSwapInterval(camera.lighting_shader_config.vsync);
 
     if (!gladLoadGL(glfwGetProcAddress)) return 1;
 
@@ -787,12 +1263,17 @@ int init_glfw() {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    glDisable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
 
-    std::cout << "OpenGL version: " << glGetString(GL_VERSION) << std::endl;
-    std::cout << "GLSL version: "   << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
-    std::cout << "Renderer: "       << glGetString(GL_RENDERER) << std::endl;
-    std::cout << "Vendor: "         << glGetString(GL_VENDOR) << std::endl;
+    hwinfo.GLSLVersion = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
+    hwinfo.OpenGLVersion = (const char*)glGetString(GL_VERSION);
+    hwinfo.GraphicsHardware = (const char*)glGetString(GL_RENDERER);
+    hwinfo.GraphicsVendor = (const char*)glGetString(GL_VENDOR);
+
+    std::cout << "OpenGL version: " << hwinfo.OpenGLVersion << std::endl;
+    std::cout << "GLSL version: "   << hwinfo.GLSLVersion << std::endl;
+    std::cout << "Renderer: "       << hwinfo.GraphicsHardware << std::endl;
+    std::cout << "Vendor: "         << hwinfo.GraphicsVendor << std::endl;
 
     int samples = 0;
     glGetIntegerv(GL_SAMPLES, &samples);
@@ -800,6 +1281,33 @@ int init_glfw() {
 
     return 0;
 }
+
+bool verify_pointers_before_frame() {
+    auto check = [](auto ptr, const char* name) {
+        if (!ptr) {
+            printf("[Engine Error] ❌ %s is nullptr\n", name);
+            return false;
+        }
+        return true;
+    };
+
+    bool ok = true;
+    ok &= check(shader, "shader");
+    ok &= check(world_renderer, "world_renderer");
+    ok &= check(texture_atlas, "texture_atlas");
+    ok &= check(sceneFBO, "sceneFBO");
+    ok &= check(blur_object, "blur_object");
+    ok &= check(shadow_depth_map, "shadow_depth_map");
+    ok &= check(block_highlight_shader, "block_highlight_shader");
+    ok &= check(block_highlight_object, "block_highlight_object");
+    ok &= check(player_object, "player_object");
+    ok &= check(player_shader, "player_shader");
+    ok &= check(crosshair_texture, "crosshair_texture");
+    ok &= check(depth_shader, "depth_shader");
+    return ok;
+}
+
+
 
 int main() {
 
@@ -811,15 +1319,19 @@ int main() {
         return code;
     }
 
-    initialise();
+
 
     init_imgui(win);
     Input::Init(win);
 
+    initialise();
+
+    // update mouse capture with initial bool value
+    Input::CaptureMouse(mouse_captured);
+
     std::cout << "atlas id = " << texture_atlas->id << std::endl;
 
     while (!glfwWindowShouldClose(win)) {
-        frames_per_second = calculate_fps();
         GLfloat currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
@@ -828,7 +1340,11 @@ int main() {
         glfwPollEvents();
         Input::Update();
 
+        glfwSwapInterval(camera.lighting_shader_config.vsync);
 
+        if (!verify_pointers_before_frame()) {
+            return 1;
+        }
 
         // window + camera
         glfwGetFramebufferSize(win, &w, &h);
@@ -847,7 +1363,7 @@ int main() {
         // PASS 1: SHADOW MAP (depth only)
         // -------------------
         glm::vec3 sunDirVec = camera.lighting_shader_config.sunDir;
-        glm::mat4 lightSpace = shadow_depth_map->GetLightSpaceMatrix(sunDirVec, camera.position);
+        glm::mat4 lightSpace = shadow_depth_map->GetLightSpaceMatrix(sunDirVec, camera);
 
 
         shadow_depth_map->BeginDepthPass(lightSpace);
@@ -862,7 +1378,7 @@ int main() {
 
         // sky color
         glm::vec3 daylight  = {0.53f, 0.81f, 0.92f};
-        glm::vec3 nightlight= {0.05f, 0.07f, 0.0975f};
+        glm::vec3 nightlight= {0, 0, 0};
         glm::vec3 sky_light = daylight * camera.lighting_shader_config.sky_night_day_light_modifier
                             + nightlight * (1.0f - camera.lighting_shader_config.sky_night_day_light_modifier);
 
@@ -873,7 +1389,13 @@ int main() {
 
 
         // draw world ONCE
+        camera.setScreenSize(w,h);
         if (render_world) world_renderer->draw(camera, shadow_depth_map);
+
+        // au_falcon_obj->rotation = glm::vec3(-90, 0, 0);
+        //
+        // au_falcon_obj->scale = glm::vec3(0.1f);
+        // au_falcon_obj->draw(camera, shadow_depth_map);
 
         player_object->position = player.position;
         player_object->rotation = player.rotation;
@@ -884,8 +1406,11 @@ int main() {
         // -------------------
         // PASS 3: BLUR the scene texture (optional, for your highlight)
         // -------------------
+        const bool disablePostProcessing = camera.lighting_shader_config.bypassPostProcessing;
         unsigned int blurredTex = blur_object->Apply(
-            sceneFBO->getTexture(), 1);
+            sceneFBO->getTexture(), disablePostProcessing ? 0 : 20);
+
+        blur_texture = blurredTex;
 
         // -------------------
         // PASS 4: PRESENT sceneFBO to the screen
@@ -901,7 +1426,7 @@ int main() {
         // -------------------
         // PASS 5: OVERLAYS (highlight uses blurredTex), then UI
         // -------------------
-        auto blockOpt = world.raycastBlock(camera.position + 0.5f, glm::normalize(camera.getFront()), 5);
+        auto blockOpt = world->raycastBlock(camera.position, glm::normalize(camera.getFront()), 5);
         camera_block_raycast_hit = blockOpt;
 
         if (blockOpt && render_block_highlight) {
@@ -913,6 +1438,10 @@ int main() {
 
             block_highlight_object->Draw(block_selection_pos.value, camera, {0.0, 0.0, 0.0, 0.2});
         }
+
+        // printf("%u\n", blurredTex);
+
+        render_2d(blurredTex);
 
         // ImGui
         ImGui_ImplOpenGL3_NewFrame();

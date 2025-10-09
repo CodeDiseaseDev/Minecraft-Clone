@@ -72,36 +72,25 @@ Mesh::Mesh(
 
 
 
-    // positions (loc 0)
+    // layout (location = 0) vec3 position
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
 
-    // normals (loc 1)
+    // layout (location = 1) vec3 normal
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3*sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
 
-    // texcoords (loc 2)  ← THIS must exist & match your vertex shader
+    // layout (location = 2) vec2 texCoord
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
 
+    // layout (location = 3) float aoFactor
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, aoFactor));
 
-
-    // stride = sizeof(Vertex)
-    // glEnableVertexAttribArray(0); // position
-    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
-    //
-    // glEnableVertexAttribArray(1); // normal
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
-    //
-    // glEnableVertexAttribArray(2); // color
-    // glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
-    //
-    // glEnableVertexAttribArray(3); // texcoord
-    // glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
-    //
-    // glEnableVertexAttribArray(4); // bary
-    // glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, bary));
-
+    // layout (location = 4) vec4 vertColor
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
 
 
 
@@ -171,39 +160,61 @@ std::optional<Mesh> Mesh::loadOBJ(const std::string& path) {
                 Vertex vert{};
 
                 // --- position ---
+                // if (idx.vertex_index >= 0) {
+                //     vert.position = {
+                //         attrib.vertices[3 * idx.vertex_index + 0],
+                //         attrib.vertices[3 * idx.vertex_index + 1],
+                //         attrib.vertices[3 * idx.vertex_index + 2]
+                //     };
+                // } else {
+                //     vert.position = {0.0f, 0.0f, 0.0f};
+                // }
+                //
+                // // --- normal ---
+                // if (idx.normal_index >= 0 && !attrib.normals.empty()) {
+                //     vert.normal = {
+                //         attrib.normals[3 * idx.normal_index + 0],
+                //         attrib.normals[3 * idx.normal_index + 1],
+                //         attrib.normals[3 * idx.normal_index + 2]
+                //     };
+                // } else {
+                //     vert.normal = {0.0f, 0.0f, 1.0f}; // fallback
+                // }
+                //
+                // // --- texcoord ---
+                // if (idx.texcoord_index >= 0 && !attrib.texcoords.empty()) {
+                //     vert.texCoord = {
+                //         attrib.texcoords[2 * idx.texcoord_index + 0],
+                //         attrib.texcoords[2 * idx.texcoord_index + 1]
+                //     };
+                // } else {
+                //     vert.texCoord = {0.0f, 0.0f}; // fallback
+                // }
+                //
+                // // --- color ---
+                // vert.color = {1.0f, 1.0f, 1.0f}; // default white
                 if (idx.vertex_index >= 0) {
                     vert.position = {
                         attrib.vertices[3 * idx.vertex_index + 0],
                         attrib.vertices[3 * idx.vertex_index + 1],
                         attrib.vertices[3 * idx.vertex_index + 2]
                     };
+
+                    // Check if the file actually has vertex colors
+                    if (!attrib.colors.empty()) {
+                        vert.color = {
+                            attrib.colors[3 * idx.vertex_index + 0],
+                            attrib.colors[3 * idx.vertex_index + 1],
+                            attrib.colors[3 * idx.vertex_index + 2]
+                        };
+                    } else {
+                        vert.color = {1.0f, 1.0f, 1.0f}; // fallback white
+                    }
                 } else {
                     vert.position = {0.0f, 0.0f, 0.0f};
+                    vert.color = {1.0f, 1.0f, 1.0f};
                 }
 
-                // --- normal ---
-                if (idx.normal_index >= 0 && !attrib.normals.empty()) {
-                    vert.normal = {
-                        attrib.normals[3 * idx.normal_index + 0],
-                        attrib.normals[3 * idx.normal_index + 1],
-                        attrib.normals[3 * idx.normal_index + 2]
-                    };
-                } else {
-                    vert.normal = {0.0f, 0.0f, 1.0f}; // fallback
-                }
-
-                // --- texcoord ---
-                if (idx.texcoord_index >= 0 && !attrib.texcoords.empty()) {
-                    vert.texCoord = {
-                        attrib.texcoords[2 * idx.texcoord_index + 0],
-                        attrib.texcoords[2 * idx.texcoord_index + 1]
-                    };
-                } else {
-                    vert.texCoord = {0.0f, 0.0f}; // fallback
-                }
-
-                // --- color ---
-                vert.color = {1.0f, 1.0f, 1.0f}; // default white
 
                 unsigned int newIndex = static_cast<unsigned int>(vertices.size());
                 vertices.push_back(vert);
@@ -214,7 +225,7 @@ std::optional<Mesh> Mesh::loadOBJ(const std::string& path) {
         }
     }
 
-
+    printf("loaded %s\n", path.c_str());
 
     // return Mesh(vertices, indices);
     return std::optional<Mesh>(std::in_place, vertices, indices);

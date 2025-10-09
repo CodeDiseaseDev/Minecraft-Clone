@@ -8,8 +8,8 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
-PlayerObject::PlayerObject(std::shared_ptr<Shader> s, std::shared_ptr<Texture> tex)
-    : shader(s), texture_atlas(tex)
+PlayerObject::PlayerObject(arena::Allocator<std::byte>& a, Shader* s, Texture* tex)
+    : shader(s), texture_atlas(tex), arena(a)
 {
     // Sizes are roughly Minecraft proportions (in blocks)
     torso   = makeCubeMesh({0.8f, 1.2f, 0.4f});
@@ -28,22 +28,22 @@ void PlayerObject::update(float dt) {
     rightLegAngle = leftArmAngle;
 }
 
-void PlayerObject::draw(Camera& camera, std::shared_ptr<ShadowMap> shadow_map) const {
+void PlayerObject::draw(Camera& camera, ShadowMap* shadow_map) const {
     shader->use();
     shader->useCamera(camera);
 
     glm::mat4 base = glm::translate(glm::mat4(1.0f), position);
     base = glm::rotate(base, rotation.y, glm::vec3(0,1,0));
+    //
+    // texture_atlas->bind(0);
+    // shader->setInt("atlas", 0);
 
-    texture_atlas->bind(0);
-    shader->setInt("atlas", 0);
-
-    if (shadow_map) {
-        shader->setMat4("lightSpaceMatrix", shadow_map->LastLightSpace());
-        shader->setVec3("lightPos", shadow_map->LastLightPosition());
-        shadow_map->bind(1);
-    }
-    shader->setInt("shadowMap", 1);
+    // if (shadow_map) {
+    //     shader->setMat4("lightSpaceMatrix", shadow_map->LastLightSpace());
+    //     shader->setVec3("lightPos", shadow_map->LastLightPosition());
+    //     shadow_map->bind(1);
+    // }
+    // shader->setInt("shadowMap", 1);
 
     // Draw torso
     glm::mat4 torsoModel = base;
@@ -86,7 +86,7 @@ void PlayerObject::draw(Camera& camera, std::shared_ptr<ShadowMap> shadow_map) c
     rightLeg->draw();
 }
 
-std::unique_ptr<Mesh> PlayerObject::makeCubeMesh(glm::vec3 size) {
+Mesh* PlayerObject::makeCubeMesh(glm::vec3 size) {
     // For simplicity: return a unit cube scaled to "size"
     std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
@@ -94,6 +94,6 @@ std::unique_ptr<Mesh> PlayerObject::makeCubeMesh(glm::vec3 size) {
     // TODO: build vertices for a cube with dimensions `size.x, size.y, size.z`
     // You can reuse your existing "addFace" logic from ChunkObject.
 
-    return std::make_unique<Mesh>(vertices, indices);
+    return arena_allocate<Mesh>(arena, vertices, indices);
 }
 

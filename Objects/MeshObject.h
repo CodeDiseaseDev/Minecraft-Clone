@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "GameObject.h"
+#include "ShadowMap.h"
 #include "../Mesh.h"
 #include "../Shader.h"
 
@@ -18,12 +19,12 @@ public:
   std::shared_ptr<Shader>& shader;
 
   MeshObject(
-    std::unique_ptr<Mesh>&& m,
+    std::unique_ptr<Mesh>& m,
     std::shared_ptr<Shader>& shader);
 
   void Update(float dt) override;
 
-  void Draw(Camera& camera) const override;
+  void draw(Camera& camera, std::shared_ptr<ShadowMap> shadow_map) const;
 };
 
 

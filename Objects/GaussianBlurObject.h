@@ -6,7 +6,8 @@
 
 class GaussianBlurObject {
 public:
-  GaussianBlurObject(std::shared_ptr<Shader> &shaderH, std::shared_ptr<Shader> &shaderV, int width, int height);
+  GaussianBlurObject(Shader* shaderH,
+    Shader* shaderV, int width, int height);
 
   // Apply blur on input texture, return blurred texture ID
   unsigned int Apply(unsigned int inputTex, int iterations = 10);

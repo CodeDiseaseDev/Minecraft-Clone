@@ -2,8 +2,8 @@
 #include <glad/gl.h>
 
 GaussianBlurObject::GaussianBlurObject(
-    std::shared_ptr<Shader> &shaderH,
-    std::shared_ptr<Shader> &shaderV,
+    Shader* shaderH,
+    Shader* shaderV,
     int width,
     int height)
     : blurShaderH(shaderH), blurShaderV(shaderV), width(width), height(height)

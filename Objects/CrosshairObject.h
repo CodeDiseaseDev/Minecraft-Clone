@@ -12,7 +12,7 @@
 
 class CrosshairObject {
 public:
-  CrosshairObject(std::shared_ptr<Shader>& shader, std::shared_ptr<Texture>& text);
+  CrosshairObject(Shader* shader, Texture* text);
   ~CrosshairObject();
 
   void Draw(int screenWidth, int screenHeight);
@@ -20,8 +20,8 @@ public:
 private:
   GLuint vao = 0;
   GLuint vbo = 0;
-  std::shared_ptr<Shader>& shader;
-  std::shared_ptr<Texture>& texture;
+  Shader* shader;
+  Texture* texture;
 };
 
 

@@ -7,6 +7,8 @@
 #include <cfloat>
 #include <glm/common.hpp>
 #include <iterator>
+
+#include "Player.h"
 // #include <glm/detail/func_geometric.inl>
 
 Chunk & World::getChunkAt(int x, int y, int z) {
@@ -14,7 +16,7 @@ Chunk & World::getChunkAt(int x, int y, int z) {
 }
 
 Chunk* World::makeChunk(int chunk_x, int chunk_y, int chunk_z) {
-  return new Chunk(chunk_x, chunk_y, chunk_z, seed);
+  return arena_allocate<Chunk>(arena, chunk_x, chunk_y, chunk_z, seed);
 }
 
 Chunk* World::getChunkPtrAt(int x, int y, int z) {
@@ -28,11 +30,12 @@ Chunk* World::getChunkPtrAt(int x, int y, int z) {
   if (!column.chunks[chunk_y]) {
     auto new_chunk = makeChunk(chunk_x, chunk_y, chunk_z);
     column.chunks[chunk_y] = new_chunk;
-    pendingChunks.emplace_back(std::move(new_chunk));
+    pendingChunks.emplace_back(new_chunk);
   }
 
   return column.chunks[chunk_y];
 }
+
 
 
 Chunk* World::tryGetChunkPtrAt(int x, int y, int z) {
@@ -151,66 +154,66 @@ ChunkColumn& World::getOrCreateColumn(int cx, int cz) {
 //   }
 // }
 
-std::vector<std::shared_ptr<Chunk>> World::ensureChunkAndNeighbors(
-  int worldX, int worldY, int worldZ, int radius) {
+std::vector<Chunk*> World::ensureChunkAndNeighbors(
+    int worldX, int worldY, int worldZ, int radius)
+{
+  std::vector<Chunk*> newChunks;
+  newChunks.reserve((radius * 2 + 1) * (radius * 2 + 1) * WORLD_HEIGHT_CHUNKS);
 
-  std::vector<std::shared_ptr<Chunk>> new_chunks;
-
+  // Move pending chunks in once per call
   if (!pendingChunks.empty()) {
-    new_chunks.insert(
-      new_chunks.end(),
-      std::make_move_iterator(pendingChunks.begin()),
-      std::make_move_iterator(pendingChunks.end()));
+    newChunks.insert(
+        newChunks.end(),
+        std::make_move_iterator(pendingChunks.begin()),
+        std::make_move_iterator(pendingChunks.end()));
     pendingChunks.clear();
   }
 
-  int cx = floorDiv(worldX, CHUNK_SIZE);
-  int cz = floorDiv(worldZ, CHUNK_SIZE);
+  const int cx = floorDiv(worldX, CHUNK_SIZE);
+  const int cz = floorDiv(worldZ, CHUNK_SIZE);
+  const float chunkHalf = CHUNK_SIZE * 0.5f;
 
-  for (auto [coords, chunk] : chunkColumns) {
-    float distance = glm::distance(
-      glm::vec3(coords.x,WORLD_HEIGHT_CHUNKS,coords.y),
-      glm::vec3(worldX, worldY, worldZ));
-
-    if (distance >= radius) {
-
-      // chunkColumns.erase(coords);
-    }
-  }
-
-  // bool should_update = false;
+  // --- Core loading loop ---
+  // Process only the square area around the current player chunk.
   for (int dx = -radius; dx <= radius; ++dx) {
     for (int dz = -radius; dz <= radius; ++dz) {
-      // if (dx*dx + dz*dz > radius*radius) continue;
 
-      int ncx = cx + dx;
-      int ncz = cz + dz;
+      const int ncx = cx + dx;
+      const int ncz = cz + dz;
 
-      // ChunkColumn& col = getOrCreateColumn(ncx, ncz);
+      // Try to find existing column
+      auto it = chunkColumns.find({ncx, ncz});
+      ChunkColumn* col = nullptr;
 
-      glm::vec3 colCenter(
-        ncx * CHUNK_SIZE + CHUNK_SIZE * 0.5f,
-        0, // ignore height for distance
-        ncz * CHUNK_SIZE + CHUNK_SIZE * 0.5f
-      );
+      if (it == chunkColumns.end()) {
+        // Column doesn't exist → create it (only once)
+        auto [newIt, inserted] = chunkColumns.emplace(
+            ChunkCoord{ncx, ncz}, ChunkColumn{});
+        col = &newIt->second;
 
-      auto [it, inserted] = chunkColumns.try_emplace({ncx, ncz});
-      ChunkColumn& col = it->second;
+        col->colCenter = {
+          ncx * CHUNK_SIZE + chunkHalf,
+          0.0f,
+          ncz * CHUNK_SIZE + chunkHalf
+      };
+      } else {
+        col = &it->second;
+      }
 
-      col.colCenter = colCenter;
-
+      // Fill missing vertical chunks
       for (int ncy = 0; ncy < WORLD_HEIGHT_CHUNKS; ++ncy) {
-        if (!col.chunks[ncy]) {
-          auto chunk = makeChunk(ncx, ncy, ncz);
-          col.chunks[ncy] = chunk;
-          new_chunks.emplace_back(std::move(chunk));
+        if (!col->chunks[ncy]) {
+          Chunk* chunk = makeChunk(ncx, ncy, ncz);
+          col->chunks[ncy] = chunk;
+          newChunks.push_back(chunk);
         }
       }
     }
   }
 
-  return new_chunks;
+  return newChunks;
 }
+
 
 std::optional<RaycastHit> World::raycastBlock(
   const glm::vec3 &origin,
@@ -248,7 +251,6 @@ std::optional<RaycastHit> World::raycastBlock(
       return RaycastHit{voxel, hitNormal};
     }
 
-    // Step to next voxel
     if (tMax.x < tMax.y) {
       if (tMax.x < tMax.z) {
         voxel.x += step.x;
@@ -280,19 +282,28 @@ std::optional<RaycastHit> World::raycastBlock(
 }
 
 
-std::vector<std::reference_wrapper<Block>> World::getNearbyBlocks(glm::vec3 vec) {
+std::vector<std::reference_wrapper<Block>> World::getNearbyBlocks(glm::vec3 pos) {
   std::vector<std::reference_wrapper<Block>> result;
 
-  // The player only collides with blocks in a small area around them.
-  // Let’s say a 3×3×3 cube centered at player position.
-  int px = static_cast<int>(floor(vec.x));
-  int py = static_cast<int>(floor(vec.y));
-  int pz = static_cast<int>(floor(vec.z));
+  glm::vec3 halfExtents = player_dimentions * 0.5f;
+  glm::vec3 min = pos - halfExtents;
+  glm::vec3 max = pos + halfExtents;
 
-  for (int x = px - 1; x <= px + 1; ++x) {
-    for (int y = py - 1; y <= py + 2; ++y) {   // +2 so we check blocks above player head
-      for (int z = pz - 1; z <= pz + 1; ++z) {
-        Block& b = getBlockAt(x, y, z); // however you access blocks
+  // expand Y to full height
+  min.y = pos.y;
+  max.y = pos.y + player_dimentions.y;
+
+  int minX = static_cast<int>(floor(min.x));
+  int maxX = static_cast<int>(floor(max.x));
+  int minY = static_cast<int>(floor(min.y));
+  int maxY = static_cast<int>(floor(max.y));
+  int minZ = static_cast<int>(floor(min.z));
+  int maxZ = static_cast<int>(floor(max.z));
+
+  for (int x = minX; x <= maxX; ++x) {
+    for (int y = minY; y <= maxY; ++y) {
+      for (int z = minZ; z <= maxZ; ++z) {
+        Block& b = getBlockAt(x, y, z);
         if (!b.isAir()) {
           result.push_back(b);
         }
@@ -303,12 +314,28 @@ std::vector<std::reference_wrapper<Block>> World::getNearbyBlocks(glm::vec3 vec)
   return result;
 }
 
+
 bool World::isAir(int x, int y, int z) {
-  Block* block = tryGetBlockAt(x, y, z);
+  return isAir(glm::ivec3(x, y, z));
+}
+
+bool World::isAir(glm::ivec3 pos) {
+  Block* block = tryGetBlockAt(pos.x, pos.y, pos.z);
   if (!block) {
     return true;
   }
 
   return block->isAir();
+}
+
+World::~World() {
+  for (auto [coords, chunk] : chunkColumns) {
+    for (auto ch : chunk.chunks) {
+      if (ch) {
+        ch->~Chunk();
+        arena.deallocate((std::byte*)ch, 1);
+      }
+    }
+  }
 }
 

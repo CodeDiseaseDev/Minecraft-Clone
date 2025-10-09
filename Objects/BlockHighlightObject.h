@@ -12,11 +12,11 @@
 class BlockHighlightObject {
 public:
 
-  std::shared_ptr<Shader>& shader;
+  Shader* shader;
   std::shared_ptr<Mesh> mesh;
   glm::vec3 chunk_pos {0,0,0};
 
-  explicit BlockHighlightObject(std::shared_ptr<Shader>& s);
+  explicit BlockHighlightObject(Shader* s);
 
   void Draw(const glm::vec3 &blockPos, Camera &camera, const glm::vec4 &color);
 };

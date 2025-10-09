@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.16)
 project(LearningOpenGL C CXX)
 set(CMAKE_CXX_STANDARD 20)
 
+#add_subdirectory(external/DiscordGameSDK)
+
+option(DEV_GAME_FILES_DIR "Path to the dev game files" "../game_files")
+message(STATUS "Using game files dir: ${DEV_GAME_FILES_DIR}")
+
 add_executable(LearningOpenGL
         main.cpp
         external/glad/gl.c
@@ -57,10 +62,20 @@ add_executable(LearningOpenGL
         Objects/PlayerObject.h
         BlockRegistry.cpp
         BlockRegistry.h
+        arena_alloc.cpp
+        arena_alloc.h
+        Objects/BatchShapeRenderer.cpp
+        Objects/BatchShapeRenderer.h
+        build_config.h
 )
+
+#target_link_libraries(LearningOpenGL PRIVATE DiscordGameSDK)
 
 target_include_directories(LearningOpenGL PRIVATE external)
 
 find_package(glm CONFIG REQUIRED)
 find_package(glfw3 REQUIRED)
 target_link_libraries(LearningOpenGL PRIVATE glfw ${CMAKE_DL_LIBS} glm::glm)
+target_compile_definitions(LearningOpenGL PRIVATE DEV_GAME_FILES_DIR="${DEV_GAME_FILES_DIR}")
+
+#copy_discord_sdk_runtime(LearningOpenGL)

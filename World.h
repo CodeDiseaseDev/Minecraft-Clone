@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "arena_alloc.h"
 #include "Chunk.h"
 
 #define WORLD_HEIGHT_CHUNKS (256 / 16) // 16 subchunks tall
@@ -63,17 +64,22 @@ inline int floorMod(int a, int b) {
 class World {
 private:
   int seed = 0;
-  std::vector<std::shared_ptr<Chunk>> pendingChunks;
+  std::vector<Chunk*> pendingChunks;
 
   Chunk* makeChunk(int chunk_x, int chunk_y, int chunk_z);
+
+  arena::Allocator<std::byte> &arena;
+
+  std::vector<Chunk*> new_chunks;
 
 public:
   std::unordered_map<ChunkCoord, ChunkColumn, ChunkCoordHash> chunkColumns;
 
-  float gravity = -30.0f;
+  float gravity = -0.0f;
   // float gravity = -0.2f;
 
-  World(int seed) : seed(seed) {}
+  World(arena::Allocator<std::byte> &arena, int seed) :
+    seed(seed), arena(arena) {}
 
   Chunk& getChunkAt(int x, int y, int z);
   Chunk* getChunkPtrAt(int x, int y, int z);
@@ -86,7 +92,7 @@ public:
 
   ChunkColumn &getOrCreateColumn(int cx, int cz);
 
-  std::vector<std::shared_ptr<Chunk>> ensureChunkAndNeighbors(
+  std::vector<Chunk*> ensureChunkAndNeighbors(
     int worldX, int worldY, int worldZ, int radius);
 
   std::optional<RaycastHit> raycastBlock(
@@ -97,6 +103,9 @@ public:
   std::vector<std::reference_wrapper<Block>> getNearbyBlocks(glm::vec3 vec);
 
   bool isAir(int x, int y, int z);
+  bool isAir(glm::ivec3 pos);
+
+  ~World();
 };
 
 
