@@ -14,6 +14,7 @@ class Chunk {
 public:
 
   glm::ivec3 position;
+  bool isDirty = false;
 
   Block blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
 

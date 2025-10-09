@@ -1,0 +1,1 @@
+-I/home/code/CLionProjects/LearningOpenGL/external/glfw/include -I/home/code/CLionProjects/LearningOpenGL/external/glfw/src -I"/home/code/CLionProjects/LearningOpenGL/cmake-build-windows/external/glfw/src"

@@ -3,9 +3,14 @@ project(LearningOpenGL C CXX)
 set(CMAKE_CXX_STANDARD 20)
 
 #add_subdirectory(external/DiscordGameSDK)
+if (MINGW)
+    message(STATUS "Building with MinGW (Windows target)")
+endif()
 
 option(DEV_GAME_FILES_DIR "Path to the dev game files" "../game_files")
 message(STATUS "Using game files dir: ${DEV_GAME_FILES_DIR}")
+
+
 
 add_executable(LearningOpenGL
         main.cpp
@@ -67,7 +72,12 @@ add_executable(LearningOpenGL
         Objects/BatchShapeRenderer.cpp
         Objects/BatchShapeRenderer.h
         build_config.h
+        external/mesher.h
 )
+
+add_subdirectory(external/glfw)
+target_link_libraries(LearningOpenGL PRIVATE glfw ${CMAKE_DL_LIBS} glm::glm)
+
 
 #target_link_libraries(LearningOpenGL PRIVATE DiscordGameSDK)
 

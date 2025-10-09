@@ -5,12 +5,11 @@
 #include "ChunkObject.h"
 #include "../World.h"
 
-
-ChunkObject::ChunkObject(Shader* s,
+ChunkObject::ChunkObject(
+    arena::Allocator<std::byte>& arena,
+    Shader* s,
     Texture* ta):
-  shader(s), texture_atlas(ta) {}
-
-
+  shader(s), texture_atlas(ta), arena(arena) {}
 
 
 void ChunkObject::rebuildMesh(World* world) {
@@ -76,7 +75,7 @@ void ChunkObject::rebuildMesh(World* world) {
     }
   }
 
-  mesh = std::make_unique<Mesh>(vertices, indices);
+  chunk_mesh = arena_allocate<Mesh>(arena, vertices, indices);
 }
 
 
@@ -187,8 +186,12 @@ void ChunkObject::Update(float dt) {
   // chunks usually don’t need much here
 }
 
-void ChunkObject::draw(Camera &camera, ShadowMap* shadow_map) const {
+void ChunkObject::draw(World* world, Camera &camera, ShadowMap* shadow_map) {
 
+  if (chunk->isDirty) {
+    rebuildMesh(world);
+    chunk->isDirty = false;
+  }
 
   if (shader == nullptr) {
     throw std::runtime_error("Shader ptr is nullptr");
@@ -219,7 +222,7 @@ void ChunkObject::draw(Camera &camera, ShadowMap* shadow_map) const {
   }
   shader->setInt("shadowMap", 1);
 
-  mesh->draw();
+  chunk_mesh->draw();
 }
 
 
@@ -249,6 +252,10 @@ float ChunkObject::computeAO(World* world, glm::ivec3 basePos,
 
   // optional: gentle bias so corners aren’t pitch black
   return glm::clamp(ao * 0.9f + 0.1f, 0.0f, 1.0f);
+}
+
+ChunkObject::~ChunkObject() {
+  AUTO_DEALLOCATE_CA(arena, Mesh, chunk_mesh);
 }
 
 

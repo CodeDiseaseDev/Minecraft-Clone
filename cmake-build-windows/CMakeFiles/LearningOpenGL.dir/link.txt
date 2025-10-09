@@ -1,0 +1,3 @@
+/usr/bin/cmake -E rm -f CMakeFiles/LearningOpenGL.dir/objects.a
+/usr/bin/x86_64-w64-mingw32-ar qc CMakeFiles/LearningOpenGL.dir/objects.a @CMakeFiles/LearningOpenGL.dir/objects1.rsp
+/usr/bin/x86_64-w64-mingw32-g++ -Wl,--whole-archive CMakeFiles/LearningOpenGL.dir/objects.a -Wl,--no-whole-archive -o LearningOpenGL.exe -Wl,--out-implib,libLearningOpenGL.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles/LearningOpenGL.dir/linkLibs.rsp

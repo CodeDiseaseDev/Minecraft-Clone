@@ -28,7 +28,7 @@ Chunk::Chunk(int chunkX, int chunkY, int chunkZ, int seed) {
   FastNoiseLite noise;
   noise.SetSeed(seed);
   noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-  noise.SetFrequency(0.01f); // controls terrain "stretch"
+  noise.SetFrequency(0.004f); // controls terrain "stretch"
 
   FastNoiseLite ore_noise;
   ore_noise.SetSeed(seed + 1234);
@@ -84,10 +84,10 @@ Chunk::Chunk(int chunkX, int chunkY, int chunkZ, int seed) {
           }
 
 
-          if (worldY > 10) {
-            blocks[x][y][z] = Block{ BlockID::Air };
-
-          }
+          // if (worldY > 10) {
+          //   blocks[x][y][z] = Block{ BlockID::Air };
+          //
+          // }
         }
         else {
           blocks[x][y][z] = Block{ BlockID::Air };

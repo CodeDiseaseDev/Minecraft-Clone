@@ -190,6 +190,8 @@ void Player::jumpTick(World* world, bool spaceHeld, float dt) {
     vel_y.target = 0.0f;
   }
 
+
+
   vel_y.tick(dt, 3.0f);
 
   jump_velocity = glm::vec3(0.0f, vel_y.value, 0.0f);

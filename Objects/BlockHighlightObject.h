@@ -8,17 +8,18 @@
 
 #include "../Shader.h"
 #include "../Mesh.h"
+#include "../World.h"
 
 class BlockHighlightObject {
 public:
 
   Shader* shader;
-  std::shared_ptr<Mesh> mesh;
+  Mesh* mesh;
   glm::vec3 chunk_pos {0,0,0};
 
-  explicit BlockHighlightObject(Shader* s);
+  explicit BlockHighlightObject(arena::Allocator<std::byte>& arena, Shader* s);
 
-  void Draw(const glm::vec3 &blockPos, Camera &camera, const glm::vec4 &color);
+  void Draw(const RaycastHit &hit, Camera &camera, const glm::vec4 &color);
 };
 
 

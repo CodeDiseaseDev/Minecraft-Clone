@@ -80,7 +80,7 @@ float normal_fov;
 float zoomed_fov;
 
 float camera_sensitivity;
-bool mouse_captured;
+bool mouse_captured = false;
 
 int render_distance_radius;
 
@@ -267,7 +267,6 @@ void use_initial_values() {
 
 
 
-    mouse_captured = true;
 
     render_world = true;
     render_block_highlight = false;
@@ -420,7 +419,7 @@ void initialise() {
 
     AUTO_DEALLOCATE(BlockHighlightObject, block_highlight_object);
     block_highlight_object = arena_allocate<BlockHighlightObject>(
-        engineArena, block_highlight_shader);
+        engineArena, engineArena, block_highlight_shader);
 
 
     AUTO_DEALLOCATE(ShadowMap, shadow_depth_map);
@@ -432,6 +431,19 @@ void initialise() {
         engineArena, shader, texture_atlas, world, engineArena);
 
 
+}
+
+void clear_chunks() {
+    for (auto& [coord, chunk_column] : world->chunkColumns) {
+        chunk_column.deallocate(engineArena);
+    }
+    for (auto& chunk_object : world_renderer->visibleChunks) {
+        chunk_object->~ChunkObject();
+        AUTO_DEALLOCATE(ChunkObject, chunk_object);
+    }
+
+    world->chunkColumns.clear();
+    world_renderer->visibleChunks.clear();
 }
 
 void reload_game() {
@@ -548,6 +560,22 @@ void setup_imgui_theme(bool dark = true)
     // style.Alpha = 1.0f;
 }
 
+void set_mouse_captured() {
+    mouse_captured = !mouse_captured;
+
+    glfwSetInputMode(win, GLFW_CURSOR, mouse_captured ?
+        GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+
+    if (mouse_captured) {
+        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+    }
+    else {
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+    }
+
+    Input::CaptureMouse(mouse_captured);
+}
+
 void chunk_updater_tick(int radius) {
     std::vector<Chunk*> updated = world->ensureChunkAndNeighbors(
             camera.position.x,
@@ -625,7 +653,7 @@ void render_blur_at(unsigned int blurTex, int x, int y, int w, int h) {
     batch_shape_renderer->End(camera);
 }
 
-void render_2d(unsigned int blurTex) {
+void render_2d() {
     batch_shape_renderer->Start();
 
     int crosshair_size = std::min(
@@ -912,8 +940,7 @@ void render_imgui() {
         // ImGui::Text("** Chunks **");
         ImGui::Text("Shaders, chunks & textures.");
         if (ImGui::Button("Clear Chunks")) {
-            world->chunkColumns.clear();
-            world_renderer->visibleChunks.clear();
+            clear_chunks();
         }
         ImGui::SameLine();
 
@@ -966,23 +993,23 @@ void set_block(glm::ivec3 pos, BlockID new_block) {
         pos
     };
 
-    world->setBlockAt(
+    world->setBlockAtAndUpdate(
         x, y, z,
         block
     );
 
-    if (auto chunkPtr = world->getChunkPtrAt(x, y, z)) {
-        // rebuild chunk next frame
-        // printf("0x%x\n", chunkPtr.get());
-        auto begin = world_renderer->chunksToRebuild.begin();
-        auto end = world_renderer->chunksToRebuild.end();
-
-        if (std::find(begin, end, chunkPtr) == end) {
-            world_renderer->chunksToRebuild
-                .emplace_back(chunkPtr);
-        }
-
-    }
+    // if (auto chunkPtr = world->getChunkPtrAt(x, y, z)) {
+    //     // rebuild chunk next frame
+    //     // printf("0x%x\n", chunkPtr.get());
+    //     auto begin = world_renderer->chunksToRebuild.begin();
+    //     auto end = world_renderer->chunksToRebuild.end();
+    //
+    //     if (std::find(begin, end, chunkPtr) == end) {
+    //         world_renderer->chunksToRebuild
+    //             .emplace_back(chunkPtr);
+    //     }
+    //
+    // }
 
     // if (chunk_y >= 0 && chunk_y < WORLD_HEIGHT_CHUNKS) {
     //     ChunkCoord coord{chunk_x, chunk_z};
@@ -1020,6 +1047,56 @@ void place_block(BlockID block_id) {
     );
 }
 
+void build_tower(int height, int radius) {
+    glm::ivec3 base = glm::ivec3(player.position);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                float dist = std::sqrt(float(x*x + z*z));
+                if (dist >= radius - 0.5f && dist <= radius + 0.5f) {
+                    set_block(base + glm::ivec3(x, y, z), BlockID::Stone);
+                }
+            }
+        }
+    }
+
+    const float turnsPerHeight = 0.6f;
+    for (float r = 1; r <= 3; r += 0.5f) {
+        for (float y = 0; y < height; y += 0.2f) {
+            float angle = y * turnsPerHeight;
+            float fx = std::cos(angle) * (radius - r);
+            float fz = std::sin(angle) * (radius - r);
+
+            glm::ivec3 stairPos = base + glm::ivec3(
+                (int)std::round(fx), (int)std::floor(y), (int)std::round(fz));
+
+            set_block(stairPos, BlockID::Stone);
+        }
+    }
+
+}
+
+void clear_area(int width = 50, int length = 50, int height = 50) {
+
+    int bottomY = player.position.y;
+    int centerX = player.position.x;
+    int centerZ = player.position.z;
+
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            for (int z = 0; z < length; z++) {
+                glm::ivec3 blockPos = {
+                    x + centerX - (width / 2),
+                    y + bottomY,
+                    z + centerZ - (length / 2)
+                };
+                set_block(blockPos, BlockID::Air);
+            }
+        }
+    }
+}
+
 void create_house() {
     int centerX = floor(player.position.x);
     int centerZ = floor(player.position.z);
@@ -1028,6 +1105,8 @@ void create_house() {
     int width = 30;
     int length = 30;
     int height = 8;
+
+    clear_area(width, height, length);
 
     int offsetX = -width / 2;
     int offsetZ = -length / 2;
@@ -1086,8 +1165,16 @@ void game_logic() {
     ImGuiIO& io = ImGui::GetIO();
     player_wasd_velocity.target = glm::vec3(0.0f);
 
+    if (mouse_captured) {
+        io.WantCaptureMouse = false;
+        io.WantCaptureKeyboard = false;
+    }
+
     // --- INPUT FLAGS ---
     bool left_click = false, right_click = false;
+
+
+
     if (!io.WantCaptureMouse) {
         left_click = Input::IsMouseHeld(GLFW_MOUSE_BUTTON_1);
         right_click = Input::IsMouseHeld(GLFW_MOUSE_BUTTON_2);
@@ -1099,8 +1186,7 @@ void game_logic() {
 
     // --- TOGGLES ---
     if (Input::IsKeyPressed(GLFW_KEY_Q)) {
-        mouse_captured = !mouse_captured;
-        Input::CaptureMouse(mouse_captured);
+        set_mouse_captured();
     }
     if (Input::IsKeyPressed(GLFW_KEY_F))  free_cam = !free_cam;
     if (Input::IsKeyPressed(GLFW_KEY_H))  render_block_highlight = !render_block_highlight;
@@ -1109,6 +1195,9 @@ void game_logic() {
     if (Input::IsKeyHeld(GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(win, true);
 
     if (Input::IsKeyPressed(GLFW_KEY_G)) create_house();
+    if (Input::IsKeyPressed(GLFW_KEY_B)) clear_area(400, 400, 50);
+    if (Input::IsKeyPressed(GLFW_KEY_J)) build_tower(150, 10);
+    if (Input::IsKeyPressed(GLFW_KEY_V)) camera.lighting_shader_config.vsync = !camera.lighting_shader_config.vsync;
 
     // --- CAMERA FOV ---
     camera_zoom.target = Input::IsKeyHeld(GLFW_KEY_C) ? zoomed_fov : normal_fov;
@@ -1136,10 +1225,8 @@ void game_logic() {
 
 
 
-            if (left_click) place_block(BlockID::Stone);
-
-            // block breaking disabled...
-            // else if (right_click) break_block(BlockID::Air);
+            if (right_click) place_block(BlockID::Stone);
+            else if (left_click) break_block(BlockID::Air);
         }
 
         last_raycast_had_value = raycast_has_value;
@@ -1265,6 +1352,7 @@ int init_glfw() {
 
     glEnable(GL_CULL_FACE);
 
+
     hwinfo.GLSLVersion = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
     hwinfo.OpenGLVersion = (const char*)glGetString(GL_VERSION);
     hwinfo.GraphicsHardware = (const char*)glGetString(GL_RENDERER);
@@ -1327,7 +1415,7 @@ int main() {
     initialise();
 
     // update mouse capture with initial bool value
-    Input::CaptureMouse(mouse_captured);
+    set_mouse_captured();
 
     std::cout << "atlas id = " << texture_atlas->id << std::endl;
 
@@ -1351,10 +1439,13 @@ int main() {
         glViewport(0, 0, w, h);
         camera.aspect = float(w) / float(h);
 
-        // resize offscreen buffers
-        blur_object->updateSize(w, h);
-        sceneFBO->resize(w, h);
-        // shadow_depth_map->Resize(w, h);
+        if (!camera.lighting_shader_config.bypassPostProcessing) {
+            // resize offscreen buffers
+            blur_object->updateSize(w, h);
+            sceneFBO->resize(w, h);
+            // shadow_depth_map->Resize(w, h);
+        }
+
 
         // ---- game logic / input / physics
         game_logic();
@@ -1362,19 +1453,21 @@ int main() {
         // -------------------
         // PASS 1: SHADOW MAP (depth only)
         // -------------------
-        glm::vec3 sunDirVec = camera.lighting_shader_config.sunDir;
-        glm::mat4 lightSpace = shadow_depth_map->GetLightSpaceMatrix(sunDirVec, camera);
+        if (!camera.lighting_shader_config.bypassPostProcessing) {
+            glm::vec3 sunDirVec = camera.lighting_shader_config.sunDir;
+            glm::mat4 lightSpace = shadow_depth_map->GetLightSpaceMatrix(sunDirVec, camera);
 
 
-        shadow_depth_map->BeginDepthPass(lightSpace);
-        world_renderer->draw_depth_only(lightSpace, depth_shader);
-        shadow_depth_map->EndDepthPass();
+            shadow_depth_map->BeginDepthPass(lightSpace);
+            world_renderer->draw_depth_only(lightSpace, depth_shader);
+            shadow_depth_map->EndDepthPass();
 
 
-        // -------------------
-        // PASS 2: SCENE (into sceneFBO)  ← this is the ONLY world draw to color
-        // -------------------
-        sceneFBO->bind();
+            // -------------------
+            // PASS 2: SCENE (into sceneFBO)  ← this is the ONLY world draw to color
+            // -------------------
+            sceneFBO->bind();
+        }
 
         // sky color
         glm::vec3 daylight  = {0.53f, 0.81f, 0.92f};
@@ -1386,6 +1479,7 @@ int main() {
 
         glClearColor(sky_light.x, sky_light.y, sky_light.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
 
 
         // draw world ONCE
@@ -1401,27 +1495,33 @@ int main() {
         player_object->rotation = player.rotation;
         player_object->draw(camera, shadow_depth_map);
 
-        sceneFBO->unbind();
+        if (!camera.lighting_shader_config.bypassPostProcessing) {
+            sceneFBO->unbind();
+        }
 
         // -------------------
         // PASS 3: BLUR the scene texture (optional, for your highlight)
         // -------------------
-        const bool disablePostProcessing = camera.lighting_shader_config.bypassPostProcessing;
-        unsigned int blurredTex = blur_object->Apply(
-            sceneFBO->getTexture(), disablePostProcessing ? 0 : 20);
+        if (!camera.lighting_shader_config.bypassPostProcessing) {
+            unsigned int blurredTex = blur_object->Apply(
+                sceneFBO->getTexture(), 20);
 
-        blur_texture = blurredTex;
+            blur_texture = blurredTex;
 
-        // -------------------
-        // PASS 4: PRESENT sceneFBO to the screen
-        // -------------------
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glViewport(0, 0, w, h);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // EITHER: blit (fast)
-        sceneFBO->blitToDefault(w, h);   // implement via glBlitFramebuffer
-        // OR draw a fullscreen quad with a pass-through shader sampling sceneFBO->getTexture()
+
+            // -------------------
+            // PASS 4: PRESENT sceneFBO to the screen
+            // -------------------
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, w, h);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            // EITHER: blit (fast)
+
+            sceneFBO->blitToDefault(w, h);   // implement via glBlitFramebuffer
+            // OR draw a fullscreen quad with a pass-through shader sampling sceneFBO->getTexture()
+        }
 
         // -------------------
         // PASS 5: OVERLAYS (highlight uses blurredTex), then UI
@@ -1433,15 +1533,15 @@ int main() {
             block_highlight_shader->use();
             block_highlight_shader->setInt("blurredScene", 0);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, blurredTex);
+            glBindTexture(GL_TEXTURE_2D, blur_texture);
             block_selection_pos.target = blockOpt->voxel;
 
-            block_highlight_object->Draw(block_selection_pos.value, camera, {0.0, 0.0, 0.0, 0.2});
+            block_highlight_object->Draw(blockOpt.value(), camera, {1,1,1,1});
         }
 
         // printf("%u\n", blurredTex);
 
-        render_2d(blurredTex);
+        render_2d();
 
         // ImGui
         ImGui_ImplOpenGL3_NewFrame();

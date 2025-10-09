@@ -48,7 +48,7 @@ void WorldRenderer::rebuildChunkMesh(Camera &cam, Chunk *chunk) {
   }
   else {
     chunkObj = arena_allocate<ChunkObject>(
-      allocator, shader, texture_atlas);
+      allocator, allocator, shader, texture_atlas);
 
     visibleChunks.push_back(chunkObj);
     chunkObj->chunk_pos = pos + 0.5f;
@@ -80,15 +80,16 @@ void WorldRenderer::rebuildTheseChunks(
 
 void WorldRenderer::draw(Camera &cam, ShadowMap* shadow_map) {
 
-  this->rebuildTheseChunks(cam, chunksToRebuild);
-  chunksToRebuild.clear();
+
+  // this->rebuildTheseChunks(cam, chunksToRebuild);
+  // chunksToRebuild.clear();
 
   if (shader == nullptr) {
     throw std::runtime_error("Shader ptr is nullptr");
   }
 
   for (auto& chunkObj : visibleChunks) {
-    chunkObj->draw(cam, shadow_map);
+    chunkObj->draw(world, cam, shadow_map);
   }
 }
 
@@ -104,13 +105,13 @@ void WorldRenderer::draw_depth_only(
     "lightSpaceMatrix", lightSpaceMatrix);
 
   for (auto& chunk : visibleChunks) {
-    if (!chunk->mesh->vao) continue;
+    if (!chunk->chunk_mesh->vao) continue;
 
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, chunk->chunk_pos);
     depthShader->setMat4("model", model);
 
-    chunk->mesh->draw();
+    chunk->chunk_mesh->draw();
     // glBindVertexArray(chunk->mesh->vao);
     // glDrawElements(GL_TRIANGLES, chunk->mesh->indexCount, GL_UNSIGNED_INT, 0);
   }

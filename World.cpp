@@ -97,6 +97,37 @@ Block* World::tryGetBlockAt(int x, int y, int z) {
   return &chunk->blocks[local_x][local_y][local_z];
 }
 
+void World::setBlockAtAndUpdate(int x, int y, int z, Block block) {
+  Chunk& chunk = getChunkAt(x, y, z);
+
+  int local_x = floorMod(x, CHUNK_SIZE);
+  int local_y = floorMod(y, CHUNK_SIZE);
+  int local_z = floorMod(z, CHUNK_SIZE);
+
+  chunk.blocks[local_x][local_y][local_z] = block;
+  chunk.isDirty = true;
+
+  bool x_edge_s = local_x == 0;
+  bool y_edge_s = local_y == 0;
+  bool z_edge_s = local_z == 0;
+
+  bool x_edge_e = local_x == CHUNK_SIZE - 1;
+  bool y_edge_e = local_y == CHUNK_SIZE - 1;
+  bool z_edge_e = local_z == CHUNK_SIZE - 1;
+
+  if (x_edge_s || y_edge_s || z_edge_s ||
+      x_edge_e || y_edge_e || z_edge_e) {
+
+    if (x_edge_s) setChunkDirty(x - 1, y, z);
+    if (y_edge_s) setChunkDirty(x, y - 1, z);
+    if (z_edge_s) setChunkDirty(x, y, z - 1);
+
+    if (x_edge_e) setChunkDirty(x + 1, y, z);
+    if (y_edge_e) setChunkDirty(x, y + 1, z);
+    if (z_edge_e) setChunkDirty(x, y, z + 1);
+  }
+}
+
 
 void World::setBlockAt(int x, int y, int z, Block block) {
   Chunk& chunk = getChunkAt(x, y, z);
@@ -106,8 +137,14 @@ void World::setBlockAt(int x, int y, int z, Block block) {
   int local_z = floorMod(z, CHUNK_SIZE);
 
   chunk.blocks[local_x][local_y][local_z] = block;
-
+  chunk.isDirty = true;
 }
+
+void World::setChunkDirty(int x, int y, int z) {
+  if (y < 0) return;
+  getChunkAt(x, y, z).isDirty = true;
+}
+
 
 ChunkColumn& World::getOrCreateColumn(int cx, int cz) {
 
@@ -327,6 +364,7 @@ bool World::isAir(glm::ivec3 pos) {
 
   return block->isAir();
 }
+
 
 World::~World() {
   for (auto [coords, chunk] : chunkColumns) {

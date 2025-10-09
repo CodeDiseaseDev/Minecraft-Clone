@@ -25,6 +25,13 @@
  *    http://glad.sh/#api=gl%3Acore%3D3.3&extensions=&generator=c&options=
  *
  */
+#ifdef __MINGW32__
+#pragma GCC system_header
+#define _CRT_USE_WINAPI_FAMILY_DESKTOP_APP 1
+#define _CRT_SECURE_NO_WARNINGS
+#define _W64
+#define WIN32_LEAN_AND_MEAN
+#endif
 
 #ifndef GLAD_GL_H_
 #define GLAD_GL_H_

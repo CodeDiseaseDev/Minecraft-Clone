@@ -13,7 +13,7 @@
 #include "arena_alloc.h"
 #include "Chunk.h"
 
-#define WORLD_HEIGHT_CHUNKS (256 / 16) // 16 subchunks tall
+#define WORLD_HEIGHT_CHUNKS (100 / 16) // 16 subchunks tall
 
 struct RaycastHit {
   glm::ivec3 voxel;   // block position
@@ -24,10 +24,18 @@ struct RaycastHit {
   }
 };
 
-struct ChunkColumn {
+class ChunkColumn {
+public:
 
   std::array<Chunk*, WORLD_HEIGHT_CHUNKS> chunks;
   glm::vec3 colCenter;
+
+  void deallocate(arena::Allocator<std::byte> arena) {
+    for (auto& chunk : chunks) {
+      chunk->~Chunk();
+      AUTO_DEALLOCATE_CA(arena, Chunk, chunk);
+    }
+  }
 };
 
 struct ChunkCoord {
@@ -88,7 +96,11 @@ public:
 
   Block& getBlockAt(int x, int y, int z);
   Block* tryGetBlockAt(int x, int y, int z);
+
+  void setBlockAtAndUpdate(int x, int y, int z, Block block);
   void setBlockAt(int x, int y, int z, Block block);
+
+  void setChunkDirty(int x, int y, int z);
 
   ChunkColumn &getOrCreateColumn(int cx, int cz);
 
@@ -104,6 +116,8 @@ public:
 
   bool isAir(int x, int y, int z);
   bool isAir(glm::ivec3 pos);
+
+
 
   ~World();
 };

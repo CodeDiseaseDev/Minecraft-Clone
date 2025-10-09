@@ -15,6 +15,8 @@
 #include "../Texture.h"
 #include "../BlockRegistry.h"
 
+
+
 const glm::vec3 faceVerts_PosX[4] = {
   {1, 0, 0},
   {1, 1, 0},
@@ -102,7 +104,7 @@ class World;
 
 class ChunkObject : public GameObject {
 public:
-  std::shared_ptr<Mesh> mesh;
+  Mesh* chunk_mesh;
 
 
   Shader* shader;
@@ -111,8 +113,12 @@ public:
 
   glm::vec3 chunk_pos {0,0,0};
 
+  arena::Allocator<std::byte>& arena;
 
-  explicit ChunkObject(Shader* s,
+
+  explicit ChunkObject(
+    arena::Allocator<std::byte>& arena,
+    Shader* s,
     Texture* ta);
 
   // Called when world gen / block edits happen
@@ -128,7 +134,7 @@ public:
 
   void Update(float dt) override;
 
-  void draw(Camera& camera, ShadowMap* shadow_map) const;
+  void draw(World* world, Camera& camera, ShadowMap* shadow_map);
 
   void setChunk(Chunk* chunk);
 
@@ -137,6 +143,8 @@ public:
   static float computeAO(World* world, glm::ivec3 basePos,
                        glm::ivec3 side1, glm::ivec3 side2,
                        glm::ivec3 corner);
+
+  ~ChunkObject();
 };
 
 

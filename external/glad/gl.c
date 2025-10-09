@@ -1,10 +1,18 @@
 /**
  * SPDX-License-Identifier: (WTFPL OR CC0-1.0) AND Apache-2.0
  */
+#ifdef __MINGW32__
+#pragma GCC system_header
+#define _CRT_USE_WINAPI_FAMILY_DESKTOP_APP 1
+#define _CRT_SECURE_NO_WARNINGS
+#define _W64
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <glad/gl.h>
+#include "glad/gl.h"
 
 #ifndef GLAD_IMPL_UTIL_C_
 #define GLAD_IMPL_UTIL_C_
