@@ -65,6 +65,7 @@ void BatchShapeRenderer::End(Camera& camera) {
         shader->setFloat("uRotations[0]", item.rot);
         shader->setVec4("uColors[0]", item.color);
         shader->setInt("uUseTexture[0]", item.useTex);
+        shader->setInt("uFlipped[0]", item.flipped);
 
         // Pass texture region + size
         shader->setVec4("uTexRegionPx", item.uvRegion);
@@ -99,7 +100,8 @@ void BatchShapeRenderer::DrawTexture(
     const glm::vec2& pos,
     const glm::vec2& size,
     const glm::vec4& color,
-    const glm::vec4& uvRegion
+    const glm::vec4& uvRegion,
+    const bool flipped
 ) {
     items.push_back({
         pos,
@@ -109,7 +111,8 @@ void BatchShapeRenderer::DrawTexture(
         true,
         texture->id,
         uvRegion,
-        {texture->width, texture->height}
+        {texture->width, texture->height},
+        flipped
     });
 }
 
@@ -119,7 +122,8 @@ void BatchShapeRenderer::DrawTexture(
     const glm::vec2& size,
     const glm::vec4& color,
     const glm::vec4& uvRegion,
-    const glm::vec2& textureSize
+    const glm::vec2& textureSize,
+    const bool flipped
 ) {
     /*
         struct BatchDrawItem {
@@ -141,7 +145,8 @@ void BatchShapeRenderer::DrawTexture(
         true,
         texture_id,
         uvRegion,
-        textureSize
+        textureSize,
+        flipped
     });
 }
 

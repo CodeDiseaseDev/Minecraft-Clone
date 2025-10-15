@@ -19,7 +19,7 @@ struct RaycastHit {
   glm::ivec3 voxel;   // block position
   glm::ivec3 normal;  // face normal of the block you hit
 
-  [[nodiscard]] glm::ivec3 adjacent() const {
+  glm::ivec3 adjacent() const {
     return voxel + normal;
   }
 };
@@ -89,7 +89,7 @@ public:
   World(arena::Allocator<std::byte> &arena, int seed) :
     seed(seed), arena(arena) {}
 
-  Chunk& getChunkAt(int x, int y, int z);
+  // Chunk& getChunkAt(int x, int y, int z);
   Chunk* getChunkPtrAt(int x, int y, int z);
   Chunk* tryGetChunkPtrAt(int x, int y, int z);
 

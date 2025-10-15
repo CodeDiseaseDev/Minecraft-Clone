@@ -31,69 +31,145 @@ void PlayerObject::update(float dt) {
 void PlayerObject::draw(Camera& camera, ShadowMap* shadow_map) const {
     shader->use();
     shader->useCamera(camera);
+    shader->useCameraLighting(camera);
+    shader->useCameraWorldMesh(camera);
 
-    glm::mat4 base = glm::translate(glm::mat4(1.0f), position);
-    base = glm::rotate(base, rotation.y, glm::vec3(0,1,0));
-    //
-    // texture_atlas->bind(0);
-    // shader->setInt("atlas", 0);
+    // Move everything down by 3.6 so the legs sit on ground
+    glm::mat4 base = glm::translate(glm::mat4(1.0f), position + glm::vec3(0.0f, 1.8f, 0.0f));
 
-    // if (shadow_map) {
-    //     shader->setMat4("lightSpaceMatrix", shadow_map->LastLightSpace());
-    //     shader->setVec3("lightPos", shadow_map->LastLightPosition());
-    //     shadow_map->bind(1);
-    // }
-    // shader->setInt("shadowMap", 1);
 
-    // Draw torso
-    glm::mat4 torsoModel = base;
-    shader->setMat4("model", torsoModel);
-    torso->draw();
+    glm::vec3 rotRad = glm::radians(rotation);
+    base = base * glm::rotate(glm::mat4(1.0f), -rotRad.x - 67.5f, glm::vec3(0, 1, 0));
 
-    // Draw head (offset upward)
-    glm::mat4 headModel = torsoModel * glm::translate(glm::mat4(1.0f), glm::vec3(0, 1.2f, 0));
-    shader->setMat4("model", headModel);
-    head->draw();
+    // --- Torso ---
+    {
+        glm::mat4 model = base * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0, 0.0f));
+        shader->setMat4("model", model);
+        torso->draw();
+    }
 
-    // Arms
-    glm::mat4 lArmModel = torsoModel
-        * glm::translate(glm::mat4(1.0f), glm::vec3(-0.65f, 1.0f, 0))
-        * glm::rotate(glm::mat4(1.0f), leftArmAngle, glm::vec3(1,0,0))
-        * glm::translate(glm::mat4(1.0f), glm::vec3(0, -0.6f, 0));
-    shader->setMat4("model", lArmModel);
-    leftArm->draw();
+    // --- Head ---
+    {
+        glm::mat4 model = base * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.05f, 0.0f));
+        model = model * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.45f, 0.0f));
+        model = model * glm::rotate(glm::mat4(1.0f), -rotRad.y, glm::vec3(1, 0, 0));
+        model = model * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.45f, 0.0f));
+        shader->setMat4("model", model);
+        head->draw();
+    }
 
-    glm::mat4 rArmModel = torsoModel
-        * glm::translate(glm::mat4(1.0f), glm::vec3(0.65f, 1.0f, 0))
-        * glm::rotate(glm::mat4(1.0f), rightArmAngle, glm::vec3(1,0,0))
-        * glm::translate(glm::mat4(1.0f), glm::vec3(0, -0.6f, 0));
-    shader->setMat4("model", rArmModel);
-    rightArm->draw();
+    // --- Right Arm ---
+    {
+        glm::mat4 model = base * glm::translate(glm::mat4(1.0f), glm::vec3(0.55f, 0, 0.0f));
+        shader->setMat4("model", model);
+        rightArm->draw();
+    }
 
-    // Legs
-    glm::mat4 lLegModel = torsoModel
-        * glm::translate(glm::mat4(1.0f), glm::vec3(-0.25f, -1.2f, 0))
-        * glm::rotate(glm::mat4(1.0f), leftLegAngle, glm::vec3(1,0,0))
-        * glm::translate(glm::mat4(1.0f), glm::vec3(0, -0.6f, 0));
-    shader->setMat4("model", lLegModel);
-    leftLeg->draw();
+    // --- Left Arm ---
+    {
+        glm::mat4 model = base * glm::translate(glm::mat4(1.0f), glm::vec3(-0.55f, 0, 0.0f));
+        shader->setMat4("model", model);
+        leftArm->draw();
+    }
 
-    glm::mat4 rLegModel = torsoModel
-        * glm::translate(glm::mat4(1.0f), glm::vec3(0.25f, -1.2f, 0))
-        * glm::rotate(glm::mat4(1.0f), rightLegAngle, glm::vec3(1,0,0))
-        * glm::translate(glm::mat4(1.0f), glm::vec3(0, -0.6f, 0));
-    shader->setMat4("model", rLegModel);
-    rightLeg->draw();
+    // --- Left Leg ---
+    {
+        glm::mat4 model = base * glm::translate(glm::mat4(1.0f), glm::vec3(-0.2f, 0 - 1.2f, 0));
+        shader->setMat4("model", model);
+        leftLeg->draw();
+    }
+
+    // --- Right Leg ---
+    {
+        glm::mat4 model = base * glm::translate(glm::mat4(1.0f), glm::vec3(0.2f, 0 - 1.2f, 0));
+        shader->setMat4("model", model);
+        rightLeg->draw();
+    }
 }
 
+
+
+
+
 Mesh* PlayerObject::makeCubeMesh(glm::vec3 size) {
-    // For simplicity: return a unit cube scaled to "size"
     std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
 
-    // TODO: build vertices for a cube with dimensions `size.x, size.y, size.z`
-    // You can reuse your existing "addFace" logic from ChunkObject.
+    // Half extents
+    glm::vec3 half = size * 0.5f;
 
+    // Define cube faces (positions and normals)
+    struct Face {
+        glm::vec3 normal;
+        glm::vec3 v0, v1, v2, v3;
+    };
+
+    std::vector<Face> faces = {
+        // Front (+Z)
+        { { 0,  0,  1}, { -half.x, -half.y,  half.z}, { half.x, -half.y,  half.z}, { half.x,  half.y,  half.z}, { -half.x,  half.y,  half.z} },
+        // Back (-Z)
+        { { 0,  0, -1}, {  half.x, -half.y, -half.z}, { -half.x, -half.y, -half.z}, { -half.x,  half.y, -half.z}, {  half.x,  half.y, -half.z} },
+        // Left (-X)
+        { {-1,  0,  0}, { -half.x, -half.y, -half.z}, { -half.x, -half.y,  half.z}, { -half.x,  half.y,  half.z}, { -half.x,  half.y, -half.z} },
+        // Right (+X)
+        { { 1,  0,  0}, {  half.x, -half.y,  half.z}, {  half.x, -half.y, -half.z}, {  half.x,  half.y, -half.z}, {  half.x,  half.y,  half.z} },
+        // Top (+Y)
+        { { 0,  1,  0}, { -half.x,  half.y,  half.z}, {  half.x,  half.y,  half.z}, {  half.x,  half.y, -half.z}, { -half.x,  half.y, -half.z} },
+        // Bottom (-Y)
+        { { 0, -1,  0}, { -half.x, -half.y, -half.z}, {  half.x, -half.y, -half.z}, {  half.x, -half.y,  half.z}, { -half.x, -half.y,  half.z} },
+    };
+
+    glm::vec2 uvs[4] = {
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}
+    };
+
+    // Optional: simple color per face (can adjust as you like)
+    glm::vec3 faceColors[6] = {
+        {1, 0, 0}, // front - red
+        {0, 1, 0}, // back - green
+        {0, 0, 1}, // left - blue
+        {1, 1, 0}, // right - yellow
+        {1, 0, 1}, // top - magenta
+        {0, 1, 1}  // bottom - cyan
+    };
+
+    for (size_t i = 0; i < faces.size(); ++i) {
+        const Face& f = faces[i];
+        unsigned int startIdx = vertices.size();
+
+        for (int v = 0; v < 4; ++v) {
+            Vertex vert;
+            glm::vec3 pos;
+            switch (v) {
+                case 0: pos = f.v0; break;
+                case 1: pos = f.v1; break;
+                case 2: pos = f.v2; break;
+                case 3: pos = f.v3; break;
+            }
+
+            vert.position = pos;
+            vert.normal = f.normal;
+            vert.color = faceColors[i];
+            vert.texCoord = uvs[v];
+            vert.aoFactor = 1.0f;
+            vert.bary = glm::vec3(0.0f); // you can fill this if needed for wireframe shading
+
+            vertices.push_back(vert);
+        }
+
+        // Two triangles per face
+        indices.push_back(startIdx + 0);
+        indices.push_back(startIdx + 1);
+        indices.push_back(startIdx + 2);
+        indices.push_back(startIdx + 2);
+        indices.push_back(startIdx + 3);
+        indices.push_back(startIdx + 0);
+    }
+
+    // Allocate from arena
     return arena_allocate<Mesh>(arena, vertices, indices);
 }
 

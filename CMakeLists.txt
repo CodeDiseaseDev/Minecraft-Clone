@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(LearningOpenGL C CXX)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 #add_subdirectory(external/DiscordGameSDK)
 if (MINGW)
@@ -72,7 +72,8 @@ add_executable(LearningOpenGL
         Objects/BatchShapeRenderer.cpp
         Objects/BatchShapeRenderer.h
         build_config.h
-        external/mesher.h
+        DiscordRPC.cpp
+        DiscordRPC.h
 )
 
 add_subdirectory(external/glfw)
@@ -87,5 +88,18 @@ find_package(glm CONFIG REQUIRED)
 find_package(glfw3 REQUIRED)
 target_link_libraries(LearningOpenGL PRIVATE glfw ${CMAKE_DL_LIBS} glm::glm)
 target_compile_definitions(LearningOpenGL PRIVATE DEV_GAME_FILES_DIR="${DEV_GAME_FILES_DIR}")
+
+include(FetchContent)
+FetchContent_Declare(
+        glaze
+        GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+        GIT_TAG main
+)
+FetchContent_MakeAvailable(glaze)
+
+target_include_directories(LearningOpenGL PRIVATE external/include)
+
+add_subdirectory(external/discord-presence)
+target_link_libraries(LearningOpenGL PRIVATE discord-rpc)
 
 #copy_discord_sdk_runtime(LearningOpenGL)

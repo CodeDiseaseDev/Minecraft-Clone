@@ -15,6 +15,7 @@
 
 #include "arena_alloc.h"
 #include "build_config.h"
+#include "DiscordRPC.h"
 #include "EaseValue.h"
 #include "EaseVec3.h"
 #include "Player.h"
@@ -33,6 +34,7 @@
 #include "Objects/PlayerObject.h"
 #include "Objects/ShadowMap.h"
 
+
 // #include "DiscordGameSDK/types.h"
 
 // std::unique_ptr<MeshObject> mesh_object;
@@ -50,6 +52,8 @@ struct hardware_info {
     const char* GraphicsHardware;
     const char* GraphicsVendor;
 };
+
+DiscordRPC discord_rpc;
 
 World* world;
 Player player;
@@ -72,8 +76,17 @@ EaseValue camera_zoom{camera.fov, camera.fov};
 
 // aspect ratio gets updated every frame
 
+struct ChatMessage {
+    std::string content;
+    std::string username = "You";
 
+};
 
+struct ChatState {
+    std::vector<ChatMessage> messages;
+    char inputBuf[1024] = "";
+    bool isOpen = false;
+};
 
 
 float normal_fov;
@@ -89,11 +102,12 @@ bool third_person;
 bool render_world;
 bool render_block_highlight;
 
-bool free_cam;
+bool fly_mode;
 
 int w = 600,
     h = 600;
 
+bool does_imgui_have_keyboard = false;
 
 float walk_speed;
 float sprint_speed;
@@ -153,6 +167,9 @@ PlayerObject* player_object = nullptr;
 Shader* batch_renderer_shader = nullptr;
 BatchShapeRenderer* batch_shape_renderer = nullptr;
 
+/* Icons */
+Texture* no_keyboard_icon = nullptr;
+
 unsigned int blur_texture;
 
 // std::unique_ptr<Mesh> au_faaaalcon;
@@ -162,7 +179,7 @@ GLFWwindow* win = nullptr;
 
 std::map<std::string, Shader*> loadedShaders;
 
-
+ChatState chat_state;
 
 lighting_config preset_no_post_processing = lighting_config{
     {1.0f, 1.0f, 1.0f},
@@ -406,6 +423,12 @@ void initialise() {
         std::filesystem::path("crosshair.png");
     crosshair_texture->load(cr.c_str());
 
+    AUTO_DEALLOCATE(Texture, no_keyboard_icon);
+    no_keyboard_icon = arena_allocate<Texture>(engineArena);
+    std::filesystem::path nk = build_config::textures_dir /
+        std::filesystem::path("no-keyboard.png");
+    no_keyboard_icon->load(nk.c_str());
+
     // 3. Now that all shaders/textures exist → load blur shaders
     load_blur_shaders();
 
@@ -414,8 +437,10 @@ void initialise() {
         engineArena, batch_renderer_shader);
 
     AUTO_DEALLOCATE(PlayerObject, player_object);
+    // player_object = arena_allocate<PlayerObject>(
+    //     engineArena, engineArena, player_shader, texture_atlas);
     player_object = arena_allocate<PlayerObject>(
-        engineArena, engineArena, player_shader, texture_atlas);
+        engineArena, engineArena, shader, texture_atlas);
 
     AUTO_DEALLOCATE(BlockHighlightObject, block_highlight_object);
     block_highlight_object = arena_allocate<BlockHighlightObject>(
@@ -430,7 +455,7 @@ void initialise() {
     world_renderer = arena_allocate<WorldRenderer>(
         engineArena, shader, texture_atlas, world, engineArena);
 
-
+    discord_rpc.setup();
 }
 
 void clear_chunks() {
@@ -666,6 +691,14 @@ void render_2d() {
           camera.screenSize.y / 2 + crosshair_size / 2 },
         { crosshair_size, crosshair_size }, {1,1,1,1});
 
+    if (does_imgui_have_keyboard) {
+        batch_shape_renderer->DrawTexture(
+            no_keyboard_icon,
+            { 10, 10 },
+            {no_keyboard_icon->width, no_keyboard_icon->height},
+            {1,1,1,1},{0,0,1,1},true);
+    }
+
     batch_shape_renderer->End(camera);
 }
 
@@ -681,6 +714,92 @@ void render_imgui_window_blur() {
         pos.x, pos.y,
         size.x, size.y
     );
+}
+
+
+
+void draw_chat_overlay(ChatState& chat)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    // invisible fullscreen "canvas"
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(io.DisplaySize);
+    ImGui::Begin("##chat_overlay", nullptr,
+        ImGuiWindowFlags_NoDecoration |
+        ImGuiWindowFlags_NoBackground |
+        ImGuiWindowFlags_NoInputs |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoSavedSettings);
+
+    float lineHeight = ImGui::GetTextLineHeightWithSpacing();
+    float padding = 8.0f;
+    float x = 10.0f;
+    float y = io.DisplaySize.y - padding;
+    constexpr int field_height = 28;
+
+    auto chat_bg = IM_COL32(0, 0, 0, 180);
+
+    // Draw messages (bottom-up)
+    for (int i = (int)chat.messages.size() - 1; i >= 0; --i)
+    {
+        const std::string msg = "<" + chat.messages[i].username + "> " + chat.messages[i].content;
+        y -= lineHeight;
+
+        ImVec2 textSize = ImGui::CalcTextSize(msg.c_str());
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        float width = std::max(textSize.x + 8, 300.0f);
+        render_blur_at(
+            blur_texture,
+            x, y - 2 - field_height,
+            width, lineHeight
+        );
+        draw->AddRectFilled(
+            ImVec2(x, y - 2 - field_height),
+            ImVec2(x + width, y + lineHeight - 2 - field_height),
+            chat_bg, 0);
+        ImGui::SetCursorScreenPos(ImVec2(x + 4, y - field_height));
+        ImGui::TextUnformatted(msg.c_str());
+    }
+    ImGui::End();
+
+    // If chat is open, draw input field
+    if (chat.isOpen)
+    {
+        render_blur_at(
+            blur_texture,
+            padding, io.DisplaySize.y - field_height - padding,
+            io.DisplaySize.x - padding * 2, field_height
+        );
+
+        ImGui::SetNextWindowPos(ImVec2(padding + 1, io.DisplaySize.y - field_height - padding));
+        ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x - padding * 2, field_height));
+        // ImGui::SetNextItemWidth(io.DisplaySize.x - padding * 2);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::Begin("##chat_input", nullptr,
+            ImGuiWindowFlags_NoDecoration |
+            ImGuiWindowFlags_NoBackground |
+            ImGuiWindowFlags_NoMove );
+
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, chat_bg);
+
+        if (ImGui::InputTextMultiline("##input", chat.inputBuf, sizeof(chat.inputBuf),
+                    ImVec2(io.DisplaySize.x - padding * 2, field_height),
+                     ImGuiInputTextFlags_EnterReturnsTrue))
+        {
+            if (strlen(chat.inputBuf) > 0) {
+                chat.messages.emplace_back(chat.inputBuf);
+                chat.inputBuf[0] = '\0';
+            }
+        }
+
+
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::End();
+    }
 }
 
 void DrawArenaMemoryStats(const char* label, const arena::Allocator<std::byte>& allocator)
@@ -728,7 +847,7 @@ void render_engine_status_window() {
         ImGui::SeparatorText("Game");
         ImGui::Text("Frame Time: %.0ffps (%.1fms)",
             ImGui::GetIO().Framerate,
-             deltaTime * 1000.0f);
+            deltaTime * 1000.0f);
 
 
 
@@ -769,6 +888,8 @@ void render_engine_status_window() {
             player.position.x, player.position.y, player.position.z);
         ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
             player_wasd_velocity.value.x, player_wasd_velocity.value.y, player_wasd_velocity.value.z);
+        ImGui::Text("Rotation: (%.2f, %.2f, %.2f)",
+            player.rotation.x, player.rotation.y, player.rotation.z);
         ImGui::Text("On Ground: %s", player.is_on_ground ? "true" : "false");
         ImGui::Text("Sprinting: %s", player.is_sprinting ? "true" : "false");
         ImGui::Text("Jump Velocity Y: %.3f", player.jump_velocity.y);
@@ -790,7 +911,7 @@ void render_engine_status_window() {
         ImGui::SeparatorText("System");
         ImGui::Text("Resolution: %dx%d", w, h);
         ImGui::Text("Mouse Captured: %s", mouse_captured ? "true" : "false");
-        ImGui::Text("Free Cam: %s", free_cam ? "true" : "false");
+        ImGui::Text("Free Cam: %s", fly_mode ? "true" : "false");
         DrawArenaMemoryStats("Arena Memory", engineArena);
         ImGui::Text("GPU: %s", hwinfo.GraphicsHardware);
         ImGui::Text("GPU Vendor: %s", hwinfo.GraphicsVendor);
@@ -803,6 +924,8 @@ void render_engine_status_window() {
 }
 
 void render_imgui() {
+    draw_chat_overlay(chat_state);
+
     render_engine_status_window();
 
     ImGui::SetNextWindowSize(ImVec2(320,700), ImGuiCond_Once);
@@ -843,11 +966,13 @@ void render_imgui() {
         ImGui::Spacing();
         ImGui::Checkbox("Block Highlight", &render_block_highlight);
         ImGui::SameLine();
-        ImGui::Checkbox("Free Cam", &free_cam);
+        ImGui::Checkbox("Free Cam", &fly_mode);
 
         ImGui::Checkbox("Capture Mouse (Q)", &mouse_captured);
         ImGui::SameLine();
         ImGui::Checkbox("Chunk Renderer", &render_world);
+
+        ImGui::Checkbox("3rd Person", &third_person);
 
     }
 
@@ -997,39 +1122,6 @@ void set_block(glm::ivec3 pos, BlockID new_block) {
         x, y, z,
         block
     );
-
-    // if (auto chunkPtr = world->getChunkPtrAt(x, y, z)) {
-    //     // rebuild chunk next frame
-    //     // printf("0x%x\n", chunkPtr.get());
-    //     auto begin = world_renderer->chunksToRebuild.begin();
-    //     auto end = world_renderer->chunksToRebuild.end();
-    //
-    //     if (std::find(begin, end, chunkPtr) == end) {
-    //         world_renderer->chunksToRebuild
-    //             .emplace_back(chunkPtr);
-    //     }
-    //
-    // }
-
-    // if (chunk_y >= 0 && chunk_y < WORLD_HEIGHT_CHUNKS) {
-    //     ChunkCoord coord{chunk_x, chunk_z};
-    //     auto column_it = world.chunkColumns.find(coord);
-    //     if (column_it != world.chunkColumns.end()) {
-    //         const auto &chunkPtr = column_it->second.chunks[chunk_y];
-    //         if (chunkPtr) {
-    //             const bool alreadyQueued = std::any_of(
-    //                 world_renderer->chunksToRebuild.begin(),
-    //                 world_renderer->chunksToRebuild.end(),
-    //                 [&](const Chunk* queued) {
-    //                     return queued == chunkPtr;
-    //                 });
-    //
-    //             if (!alreadyQueued) {
-    //                 world_renderer->chunksToRebuild.emplace_back(chunkPtr);
-    //             }
-    //         }
-    //     }
-    // }
 }
 
 void break_block(BlockID block_id = BlockID::Air) {
@@ -1106,10 +1198,12 @@ void create_house() {
     int length = 30;
     int height = 8;
 
-    clear_area(width, height, length);
+    clear_area(width, length, height);
 
     int offsetX = -width / 2;
     int offsetZ = -length / 2;
+
+
 
     // --- Floor ---
     for (int x = 0; x < width; x++) {
@@ -1165,42 +1259,63 @@ void game_logic() {
     ImGuiIO& io = ImGui::GetIO();
     player_wasd_velocity.target = glm::vec3(0.0f);
 
-    if (mouse_captured) {
-        io.WantCaptureMouse = false;
-        io.WantCaptureKeyboard = false;
-    }
+    // --- INPUT LOCK HANDLING ---
+    const bool block_mouse     = io.WantCaptureMouse  && !mouse_captured;
+    const bool block_keyboard  = io.WantCaptureKeyboard && !mouse_captured;
 
-    // --- INPUT FLAGS ---
-    bool left_click = false, right_click = false;
+    does_imgui_have_keyboard = block_keyboard;
 
+    // if your engine uses mouse_captured to toggle camera control:
+    io.WantCaptureMouse    = !mouse_captured;
+    io.WantCaptureKeyboard = !mouse_captured;
 
+    // --- INPUT WRAPPERS ---
+    auto KeyHeld = [&](int key) -> bool {
+        return (!block_keyboard) && Input::IsKeyHeld(key);
+    };
+    auto KeyPressed = [&](int key) -> bool {
+        return (!block_keyboard) && Input::IsKeyPressed(key);
+    };
+    auto MouseHeld = [&](int button) -> bool {
+        return (!block_mouse) && Input::IsMouseHeld(button);
+    };
+    auto MousePressed = [&](int button) -> bool {
+        return (!block_mouse) && Input::IsMousePressed(button);
+    };
 
-    if (!io.WantCaptureMouse) {
-        left_click = Input::IsMouseHeld(GLFW_MOUSE_BUTTON_1);
-        right_click = Input::IsMouseHeld(GLFW_MOUSE_BUTTON_2);
-    }
+    // --- BASIC INPUT STATES ---
+    bool left_click  = MouseHeld(GLFW_MOUSE_BUTTON_1);
+    bool right_click = MouseHeld(GLFW_MOUSE_BUTTON_2);
 
-    const bool sprint_key = Input::IsKeyHeld(GLFW_KEY_LEFT_CONTROL);
-    const bool jump_key   = Input::IsKeyHeld(GLFW_KEY_SPACE);
-    const bool down_key   = Input::IsKeyHeld(GLFW_KEY_LEFT_SHIFT);
+    const bool sprint_key = KeyHeld(GLFW_KEY_LEFT_CONTROL);
+    const bool jump_key   = KeyHeld(GLFW_KEY_SPACE);
+    const bool down_key   = KeyHeld(GLFW_KEY_LEFT_SHIFT);
+
 
     // --- TOGGLES ---
-    if (Input::IsKeyPressed(GLFW_KEY_Q)) {
+    if (KeyPressed(GLFW_KEY_Q)) {
         set_mouse_captured();
     }
-    if (Input::IsKeyPressed(GLFW_KEY_F))  free_cam = !free_cam;
-    if (Input::IsKeyPressed(GLFW_KEY_H))  render_block_highlight = !render_block_highlight;
-    if (Input::IsKeyPressed(GLFW_KEY_F5)) { reload_game(); return; }
-    if (Input::IsKeyHeld(GLFW_KEY_Y)) teleport(0, 50, 0);
-    if (Input::IsKeyHeld(GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(win, true);
+    if (KeyPressed(GLFW_KEY_F)) {
+        fly_mode = !fly_mode;
+        player.gravity_velocity = glm::vec3(0.0f);
+        player.jump_velocity = glm::vec3(0.0f);
+    }
 
-    if (Input::IsKeyPressed(GLFW_KEY_G)) create_house();
-    if (Input::IsKeyPressed(GLFW_KEY_B)) clear_area(400, 400, 50);
-    if (Input::IsKeyPressed(GLFW_KEY_J)) build_tower(150, 10);
-    if (Input::IsKeyPressed(GLFW_KEY_V)) camera.lighting_shader_config.vsync = !camera.lighting_shader_config.vsync;
+    if (KeyPressed(GLFW_KEY_H))  render_block_highlight = !render_block_highlight;
+    if (KeyPressed(GLFW_KEY_F5)) { reload_game(); return; }
+    if (KeyHeld(GLFW_KEY_Y)) teleport(0, 50, 0);
+    if (KeyHeld(GLFW_KEY_ESCAPE)) glfwSetWindowShouldClose(win, true);
+
+    if (KeyPressed(GLFW_KEY_G)) create_house();
+    if (KeyPressed(GLFW_KEY_B)) clear_area(400, 400, 50);
+    if (KeyPressed(GLFW_KEY_J)) build_tower(150, 10);
+    if (KeyPressed(GLFW_KEY_V)) camera.lighting_shader_config.vsync = !camera.lighting_shader_config.vsync;
+
+    if (KeyPressed(GLFW_KEY_T)) chat_state.isOpen =! chat_state.isOpen;
 
     // --- CAMERA FOV ---
-    camera_zoom.target = Input::IsKeyHeld(GLFW_KEY_C) ? zoomed_fov : normal_fov;
+    camera_zoom.target = KeyHeld(GLFW_KEY_C) ? zoomed_fov : normal_fov;
 
     // --- MOVEMENT SPEED ---
     wasd_movement_speed.target = sprint_key ? sprint_speed : walk_speed;
@@ -1218,8 +1333,8 @@ void game_logic() {
             // prevent a block being placed every frame while the mouse is
             // held.
 
-            left_click = Input::IsMousePressed(GLFW_MOUSE_BUTTON_1);
-            right_click = Input::IsMousePressed(GLFW_MOUSE_BUTTON_2);
+            left_click = MousePressed(GLFW_MOUSE_BUTTON_1);
+            right_click = MousePressed(GLFW_MOUSE_BUTTON_2);
 
 
 
@@ -1234,26 +1349,26 @@ void game_logic() {
 
     // --- CAMERA ROTATION ---
     glm::vec2 delta = Input::GetMouseDelta();
-    if (Input::IsKeyHeld(GLFW_KEY_R)) {
+    if (KeyHeld(GLFW_KEY_R)) {
         // Adjust sun direction with mouse
         apply_mouse_delta_to_rotation(
             delta, camera.lighting_shader_config.sunDir,
             camera_sensitivity, deltaTime, false, true);
 
     } else if ((mouse_captured || right_click) && (delta.x != 0 || delta.y != 0)) {
-        if (free_cam)
-            apply_mouse_delta_to_rotation(delta, camera.rotation, camera_sensitivity, deltaTime);
-        else
+        // if (fly_mode)
+        //     apply_mouse_delta_to_rotation(delta, camera.rotation, camera_sensitivity, deltaTime);
+        // else
             apply_mouse_delta_to_rotation(delta, player.rotation, camera_sensitivity, deltaTime);
     }
 
     // --- MOVEMENT (WASD + JUMP + GRAVITY) ---
     {
         glm::vec3 move_dir(0.0f);
-        const bool KEY_W = Input::IsKeyHeld(GLFW_KEY_W);
-        const bool KEY_S = Input::IsKeyHeld(GLFW_KEY_S);
-        const bool KEY_A = Input::IsKeyHeld(GLFW_KEY_A);
-        const bool KEY_D = Input::IsKeyHeld(GLFW_KEY_D);
+        const bool KEY_W = KeyHeld(GLFW_KEY_W);
+        const bool KEY_S = KeyHeld(GLFW_KEY_S);
+        const bool KEY_A = KeyHeld(GLFW_KEY_A);
+        const bool KEY_D = KeyHeld(GLFW_KEY_D);
 
         if (KEY_W) move_dir += camera.getFront();
         if (KEY_S) move_dir -= camera.getFront();
@@ -1265,7 +1380,7 @@ void game_logic() {
             move_dir = glm::normalize(move_dir);
 
         // Handle vertical flight (free-cam) or jump (normal)
-        if (free_cam) {
+        if (fly_mode) {
             if (jump_key) move_dir.y += 1.0f;
             if (down_key) move_dir.y -= 1.0f;
         }
@@ -1278,7 +1393,7 @@ void game_logic() {
     {
         glm::vec3 offset = player_wasd_velocity.value * wasd_movement_speed.value * deltaTime;
 
-        if (!free_cam) {
+        if (!fly_mode) {
             player.jumpTick(world, jump_key, deltaTime);
             player.gravityTick(world, deltaTime);
 
@@ -1300,7 +1415,7 @@ void game_logic() {
                 player_wasd_velocity.target -= delta * 50.0f;
         } else {
             // Free camera flies smoothly
-            camera.position += offset;
+            player.position += offset;
         }
     }
 
@@ -1308,7 +1423,7 @@ void game_logic() {
     chunk_updater_tick(render_distance_radius);
 
     // --- SYNC CAMERA ---
-    if (!free_cam)
+    // if (!fly_mode)
         player.useCamera(camera, third_person);
 }
 
@@ -1493,6 +1608,10 @@ int main() {
 
         player_object->position = player.position;
         player_object->rotation = player.rotation;
+        if (fly_mode) {
+            player_object->_last_nfreecam_position = player.position;
+        }
+        player_object->position = player_object->_last_nfreecam_position;
         player_object->draw(camera, shadow_depth_map);
 
         if (!camera.lighting_shader_config.bypassPostProcessing) {
@@ -1543,6 +1662,12 @@ int main() {
 
         render_2d();
 
+        discord_rpc.update(
+            world_renderer->visibleChunks.size(),
+            static_cast<int>(ImGui::GetIO().Framerate),
+            camera.lighting_shader_config.vsync
+        );
+
         // ImGui
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -1564,5 +1689,7 @@ int main() {
 
     glfwDestroyWindow(win);
     glfwTerminate();
+
+    return 0;
 }
 

@@ -22,6 +22,7 @@ public:
   PlayerObject(arena::Allocator<std::byte>& arena, Shader* s, Texture* tex);
 
   arena::Allocator<std::byte>& arena;
+  glm::vec3 _last_nfreecam_position;
 
   void update(float dt);
   void draw(Camera& camera, ShadowMap* shadow_map) const;

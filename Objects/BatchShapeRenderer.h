@@ -18,6 +18,7 @@ struct BatchDrawItem {
   unsigned int texture_id;
   glm::vec4 uvRegion = {0, 0, 1, 1};
   glm::vec2 textureSize;
+  bool flipped = false;
 };
 
 class BatchShapeRenderer {
@@ -31,8 +32,8 @@ public:
   // Drawing primitives
   void DrawBox(const glm::vec2& pos, const glm::vec2& size, const glm::vec4& color);
   void DrawCircle(const glm::vec2& pos, float radius, const glm::vec4& color);
-  void DrawTexture(Texture* texture, const glm::vec2& pos, const glm::vec2& size, const glm::vec4& color = {1,1,1,1}, const glm::vec4& uvRegion = {0,0,1,1});
-  void DrawTexture(unsigned int texture_id, const glm::vec2& pos, const glm::vec2& size, const glm::vec4& color, const glm::vec4& uvRegion, const glm::vec2& textureSize);
+  void DrawTexture(Texture* texture, const glm::vec2& pos, const glm::vec2& size, const glm::vec4& color = {1,1,1,1}, const glm::vec4& uvRegion = {0,0,1,1}, const bool flipped = false);
+  void DrawTexture(unsigned int texture_id, const glm::vec2& pos, const glm::vec2& size, const glm::vec4& color, const glm::vec4& uvRegion, const glm::vec2& textureSize, const bool flipped = false);
 
 private:
   Shader* shader;

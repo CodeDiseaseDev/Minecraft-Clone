@@ -105,6 +105,20 @@ glm::vec3 Camera::GetForwardVector() const {
   ));
 }
 
+void Camera::lookAt(glm::vec3 position, glm::vec3 target, glm::vec3 up) {
+  this->position = position;
+
+  // Compute direction from position → target
+  glm::vec3 forward = glm::normalize(target - position);
+
+  // Calculate yaw and pitch from the forward vector
+  float yaw = glm::degrees(atan2(forward.x, -forward.z));
+  float pitch = glm::degrees(asin(forward.y));
+
+  // Store as Euler angles
+  this->rotation = glm::vec3(pitch, yaw, 0.0f);
+}
+
 bool Camera::isBoxInFrustum(AABB bounding_box) {
   Frustum f = extractFrustum();
   for (int i = 0; i < 6; i++) {

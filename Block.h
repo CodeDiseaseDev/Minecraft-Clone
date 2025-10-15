@@ -22,7 +22,7 @@ public:
   BlockID id = BlockID::Air;
   glm::ivec3 position {0, 0, 0};
 
-  [[nodiscard]] AABB getAABB() const {
+  AABB getAABB() const {
     glm::vec3 min = glm::vec3(position);
     return AABB(
       min,
@@ -30,6 +30,6 @@ public:
   }
   // ...
 
-  [[nodiscard]] bool isAir() const
+  bool isAir() const
     { return id == BlockID::Air; }
 };

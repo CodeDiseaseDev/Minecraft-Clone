@@ -11,9 +11,9 @@
 #include "Player.h"
 // #include <glm/detail/func_geometric.inl>
 
-Chunk & World::getChunkAt(int x, int y, int z) {
-  return *getChunkPtrAt(x, y, z);
-}
+// Chunk & World::getChunkAt(int x, int y, int z) {
+//   return *getChunkPtrAt(x, y, z);
+// }
 
 Chunk* World::makeChunk(int chunk_x, int chunk_y, int chunk_z) {
   return arena_allocate<Chunk>(arena, chunk_x, chunk_y, chunk_z, seed);
@@ -70,13 +70,13 @@ Block& World::getBlockAt(int x, int y, int z) {
   }
 
   // Chunk* chunk = tryGetChunkAt(x, y, z); // return nullptr if missing
-  Chunk& chunk = getChunkAt(x, y, z);
+  Chunk* chunk = getChunkPtrAt(x, y, z);
 
   int local_x = floorMod(x, CHUNK_SIZE);
   int local_y = floorMod(y, CHUNK_SIZE);
   int local_z = floorMod(z, CHUNK_SIZE);
 
-  return chunk.blocks[local_x][local_y][local_z];
+  return chunk->blocks[local_x][local_y][local_z];
 }
 
 
@@ -98,14 +98,14 @@ Block* World::tryGetBlockAt(int x, int y, int z) {
 }
 
 void World::setBlockAtAndUpdate(int x, int y, int z, Block block) {
-  Chunk& chunk = getChunkAt(x, y, z);
+  Chunk* chunk = getChunkPtrAt(x, y, z);
 
   int local_x = floorMod(x, CHUNK_SIZE);
   int local_y = floorMod(y, CHUNK_SIZE);
   int local_z = floorMod(z, CHUNK_SIZE);
 
-  chunk.blocks[local_x][local_y][local_z] = block;
-  chunk.isDirty = true;
+  chunk->blocks[local_x][local_y][local_z] = block;
+  chunk->isDirty = true;
 
   bool x_edge_s = local_x == 0;
   bool y_edge_s = local_y == 0;
@@ -130,19 +130,19 @@ void World::setBlockAtAndUpdate(int x, int y, int z, Block block) {
 
 
 void World::setBlockAt(int x, int y, int z, Block block) {
-  Chunk& chunk = getChunkAt(x, y, z);
+  Chunk* chunk = getChunkPtrAt(x, y, z);
 
   int local_x = floorMod(x, CHUNK_SIZE);
   int local_y = floorMod(y, CHUNK_SIZE);
   int local_z = floorMod(z, CHUNK_SIZE);
 
-  chunk.blocks[local_x][local_y][local_z] = block;
-  chunk.isDirty = true;
+  chunk->blocks[local_x][local_y][local_z] = block;
+  chunk->isDirty = true;
 }
 
 void World::setChunkDirty(int x, int y, int z) {
   if (y < 0) return;
-  getChunkAt(x, y, z).isDirty = true;
+  getChunkPtrAt(x, y, z)->isDirty = true;
 }
 
 

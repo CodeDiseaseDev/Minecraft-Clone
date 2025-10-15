@@ -37,7 +37,8 @@ void Player::useCamera(Camera& camera, bool thirdPerson) {
     camera.position = eyePos;
     camera.rotation = rotation;
   } else {
-    throw std::runtime_error("Not implemented");
+    throw std::runtime_error("nah");
+
   }
 }
 
