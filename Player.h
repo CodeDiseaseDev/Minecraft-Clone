@@ -33,14 +33,22 @@ public:
 
   AABB getAABB();
 
-  void useCamera(Camera& camera, bool thirdPerson = false);
+  void useCamera(Camera& camera, bool updatePos, bool thirdPerson = false);
   glm::vec3 tryMoveWithSlide(World* world, glm::vec3 desiredPos, glm::vec3 velocity, float dt);
   bool canMoveTo(World* world, glm::vec3 newPos);
   bool isStandingOnBlock(World* world);
   void jumpTick(World* world, bool spaceHeld, float dt);
   void gravityTick(World* world, float deltaTime);
 
+  inline auto get_player_eye_pos() const -> glm::vec3 {
+    return position + glm::vec3(0,player_dimentions.y,0);
+  }
+
   ~Player();
+
+  glm::vec3 getFront() const;
+
+  glm::vec3 getRight() const;
 };
 
 

@@ -24,21 +24,14 @@ AABB Player::getAABB() {
   };
 }
 
-void Player::useCamera(Camera& camera, bool thirdPerson) {
-  // Player head position
-  glm::vec3 eyePos(
-      position.x,
-      position.y + player_dimentions.y,
-      position.z
-  );
+void Player::useCamera(Camera& camera, bool updatePos, bool thirdPerson) {
+  if (thirdPerson) {
+    throw std::runtime_error("lol nah");
+  }
 
-  if (!thirdPerson) {
-    // First person
-    camera.position = eyePos;
+  if (updatePos) {
+    camera.position = get_player_eye_pos();
     camera.rotation = rotation;
-  } else {
-    throw std::runtime_error("nah");
-
   }
 }
 
@@ -244,5 +237,22 @@ void Player::gravityTick(World* world, float dt) {
 
 
 
+
 Player::~Player() {
+}
+
+glm::vec3 Player::getFront() const {
+  float pitch = glm::radians(rotation.y); // rotation around X axis
+  float yaw   = glm::radians(rotation.x); // rotation around Y axis
+
+  glm::vec3 front;
+  front.x = cos(pitch) * sin(yaw);
+  front.y = sin(pitch);               // yes, this controls Y movement (up/down)
+  front.z = cos(pitch) * cos(yaw);
+  return glm::normalize(front);
+
+}
+
+glm::vec3 Player::getRight() const {
+  return glm::normalize(glm::cross(getFront(), glm::vec3(0,1,0)));
 }

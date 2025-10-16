@@ -103,7 +103,7 @@ void ChunkObject::addFace(std::vector<Vertex>& vertices,
 
   // Atlas info
   const float atlasWidth  = 256.0f;
-  const float atlasHeight = 1024.0f;
+  const float atlasHeight = 2048.0f;
   const float tileSize    = 16.0f;
 
   // Compute UV bounds for this tile

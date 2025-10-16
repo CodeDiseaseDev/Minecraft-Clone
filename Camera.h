@@ -54,7 +54,7 @@ public:
 
   glm::vec3 GetForwardVector() const;
 
-  void lookAt(glm::vec3 position, glm::vec3 target, glm::vec3 up);
+  void lookAt(glm::vec3 target);
 };
 
 

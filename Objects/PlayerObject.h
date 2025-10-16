@@ -6,16 +6,23 @@
 #define PLAYEROBJECT_H
 
 
+#include <functional>
+
 #include "../Mesh.h"
 #include "../Shader.h"
 #include "../Texture.h"
 #include "../Camera.h"
+#include "../SkinUVRegistry.h"
 #include "ShadowMap.h"
 
 #include <memory>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+struct PlayerArmAndLegPositions {
+  float ArmPivot_Y = 0.0f;
+  float LegPivot_Y = 0.0f;
+};
 
 class PlayerObject {
 public:
@@ -32,10 +39,10 @@ public:
   glm::vec3 rotation {0.0f, 0.0f, 0.0f}; // yaw/pitch/roll for whole body
 
   // Animation angles
-  float leftArmAngle  = 0.0f;
-  float rightArmAngle = 0.0f;
-  float leftLegAngle  = 0.0f;
-  float rightLegAngle = 0.0f;
+  // float leftArmAngle  = 0.0f;
+  // float rightArmAngle = 0.0f;
+  // float leftLegAngle  = 0.0f;
+  // float rightLegAngle = 0.0f;
 
 private:
   Shader* shader;
@@ -49,7 +56,8 @@ private:
   Mesh* leftLeg;
   Mesh* rightLeg;
 
-  Mesh* makeCubeMesh(glm::vec3 size);
+  Mesh* makeCubeMesh(glm::vec3 size,
+    std::function<FaceUV(SkinFaceIndex)> uvFunc);
 
 
 };

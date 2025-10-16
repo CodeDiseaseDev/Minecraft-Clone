@@ -74,6 +74,8 @@ add_executable(LearningOpenGL
         build_config.h
         DiscordRPC.cpp
         DiscordRPC.h
+        SkinUVRegistry.cpp
+        SkinUVRegistry.h
 )
 
 add_subdirectory(external/glfw)

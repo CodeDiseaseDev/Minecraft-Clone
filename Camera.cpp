@@ -5,6 +5,7 @@
 #include "Camera.h"
 
 #include "World.h"
+#include "GLFW/glfw3.h"
 #include "Objects/GameObject.h"
 
 Camera::Camera(float aspectRatio):
@@ -25,12 +26,15 @@ glm::mat4 Camera::getProjectionMatrix() const {
 }
 
 glm::vec3 Camera::getFront() const {
+  float pitch = glm::radians(rotation.y);
+  float yaw   = glm::radians(rotation.x);
   glm::vec3 front;
-  front.x = cos(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
-  front.y = sin(glm::radians(rotation.y));
-  front.z = sin(glm::radians(rotation.x)) * cos(glm::radians(rotation.y));
+  front.x = cos(pitch) * sin(yaw);
+  front.y = sin(pitch);
+  front.z = cos(pitch) * cos(yaw);
   return glm::normalize(front);
 }
+
 
 glm::vec3 Camera::getRight() const {
   return glm::normalize(glm::cross(getFront(), glm::vec3(0,1,0)));
@@ -105,19 +109,12 @@ glm::vec3 Camera::GetForwardVector() const {
   ));
 }
 
-void Camera::lookAt(glm::vec3 position, glm::vec3 target, glm::vec3 up) {
-  this->position = position;
-
-  // Compute direction from position → target
-  glm::vec3 forward = glm::normalize(target - position);
-
-  // Calculate yaw and pitch from the forward vector
-  float yaw = glm::degrees(atan2(forward.x, -forward.z));
-  float pitch = glm::degrees(asin(forward.y));
-
-  // Store as Euler angles
-  this->rotation = glm::vec3(pitch, yaw, 0.0f);
+void Camera::lookAt(glm::vec3 target) {
+  glm::vec3 dir = glm::normalize(target - position);
+  rotation.y = glm::degrees(atan2(dir.x, dir.z)); // yaw
+  rotation.x = glm::degrees(asin(dir.y));         // pitch
 }
+
 
 bool Camera::isBoxInFrustum(AABB bounding_box) {
   Frustum f = extractFrustum();

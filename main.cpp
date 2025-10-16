@@ -109,10 +109,14 @@ int w = 600,
 
 bool does_imgui_have_keyboard = false;
 
+bool render_self_player_object = false;
+
 float walk_speed;
 float sprint_speed;
 // float jump_height;
 EaseValue wasd_movement_speed {walk_speed, sprint_speed};
+
+std::vector<PlayerObject*> player_characters;
 
 // std::shared_ptr<Shader> shader;
 // std::shared_ptr<Shader> block_highlight_shader;
@@ -268,7 +272,7 @@ float find_world_land_y_at(glm::vec2 pos) {
         y--;
     }
 
-    return y;
+    return y + 1;
 }
 
 void use_initial_values() {
@@ -1090,7 +1094,7 @@ void apply_mouse_delta_to_rotation(glm::vec2 delta, glm::vec3& rotation, float s
     if (use_z) rotation.z += y_delta;
     else rotation.y -= y_delta;
 
-    rotation.x += delta.x * sensitivity * deltaTime;
+    rotation.x -= delta.x * sensitivity * deltaTime;
 
     if (clamp) {
         if (use_z) {
@@ -1254,6 +1258,15 @@ void create_house() {
     }
 }
 
+void spawn_player() {
+    PlayerObject* pPlayer = arena_allocate<PlayerObject>(
+        engineArena, engineArena, shader, texture_atlas);
+
+    pPlayer->position = player.position;
+    pPlayer->rotation = player.rotation;
+
+    player_characters.emplace_back(pPlayer);
+}
 
 void game_logic() {
     ImGuiIO& io = ImGui::GetIO();
@@ -1312,7 +1325,15 @@ void game_logic() {
     if (KeyPressed(GLFW_KEY_J)) build_tower(150, 10);
     if (KeyPressed(GLFW_KEY_V)) camera.lighting_shader_config.vsync = !camera.lighting_shader_config.vsync;
 
-    if (KeyPressed(GLFW_KEY_T)) chat_state.isOpen =! chat_state.isOpen;
+    if (KeyPressed(GLFW_KEY_T)) chat_state.isOpen = !chat_state.isOpen;
+
+    if (KeyPressed(GLFW_KEY_P)) {
+        spawn_player();
+    }
+
+    if (KeyPressed(GLFW_KEY_J)) {
+        render_self_player_object = !render_self_player_object;
+    }
 
     // --- CAMERA FOV ---
     camera_zoom.target = KeyHeld(GLFW_KEY_C) ? zoomed_fov : normal_fov;
@@ -1359,7 +1380,7 @@ void game_logic() {
         // if (fly_mode)
         //     apply_mouse_delta_to_rotation(delta, camera.rotation, camera_sensitivity, deltaTime);
         // else
-            apply_mouse_delta_to_rotation(delta, player.rotation, camera_sensitivity, deltaTime);
+        apply_mouse_delta_to_rotation(delta, player.rotation, camera_sensitivity, deltaTime);
     }
 
     // --- MOVEMENT (WASD + JUMP + GRAVITY) ---
@@ -1370,10 +1391,10 @@ void game_logic() {
         const bool KEY_A = KeyHeld(GLFW_KEY_A);
         const bool KEY_D = KeyHeld(GLFW_KEY_D);
 
-        if (KEY_W) move_dir += camera.getFront();
-        if (KEY_S) move_dir -= camera.getFront();
-        if (KEY_D) move_dir += camera.getRight();
-        if (KEY_A) move_dir -= camera.getRight();
+        if (KEY_W) move_dir += player.getFront();
+        if (KEY_S) move_dir -= player.getFront();
+        if (KEY_D) move_dir += player.getRight();
+        if (KEY_A) move_dir -= player.getRight();
 
         move_dir.y = 0;
         if (glm::length(move_dir) > 0.001f)
@@ -1424,7 +1445,11 @@ void game_logic() {
 
     // --- SYNC CAMERA ---
     // if (!fly_mode)
-        player.useCamera(camera, third_person);
+    player.useCamera(camera, !KeyHeld(GLFW_KEY_U), third_person);
+
+    // camera.lookAt(player.get_player_eye_pos());
+
+
 }
 
 
@@ -1450,7 +1475,7 @@ int init_glfw() {
 
 
 
-    win = glfwCreateWindow(w, h, "OpenGL Rectangle", nullptr, nullptr);
+    win = glfwCreateWindow(w, h, "Codecraft", nullptr, nullptr);
     if (!win) return 1;
 
 
@@ -1608,11 +1633,13 @@ int main() {
 
         player_object->position = player.position;
         player_object->rotation = player.rotation;
-        if (fly_mode) {
-            player_object->_last_nfreecam_position = player.position;
+        if (render_self_player_object) {
+            player_object->draw(camera, shadow_depth_map);
         }
-        player_object->position = player_object->_last_nfreecam_position;
-        player_object->draw(camera, shadow_depth_map);
+
+        for (auto& pl : player_characters) {
+            pl->draw(camera, shadow_depth_map);
+        }
 
         if (!camera.lighting_shader_config.bypassPostProcessing) {
             sceneFBO->unbind();
